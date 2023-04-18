@@ -1,0 +1,75 @@
+spring:
+  cloud:
+    gateway:
+      # 默认 filter
+      default-filters:
+        - AddResponseHeader=X-Response-Default-Red, Default-Blue
+        - PrefixPath=/httpbin
+      set-status:
+        # 配置为在响应的标头中返回来自代理请求的原始 HTTP 状态代码。如果配置了以下属性，则标头将添加到响应中
+        original-status-header-name: original-http-status
+      routes:
+        - id: add_request_header_route
+          uri: lb://backing-service:8088
+          predicates:
+            - Path=/red/{segment}
+          filters:
+            # 增加请求头
+            - AddRequestHeader=X-Request-Red, Blue-{segment}
+            # 增加查询参数
+            - AddRequestParameter=foo, bar-{segment}
+            # 增加响应头
+            - AddResponseHeader=foo, bar-{segment}
+            # 重复响应头去重，使用空格分割
+            - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+            # Spring Cloud CircuitBreaker GatewayFilter Factory
+            - CircuitBreaker=myCircuitBreaker
+            # 这会将 X-Request-Red:<values> 标头添加到下游请求，并使用来自传入 HTTP 请求的 Blue 标头的更新值。
+            - MapRequestHeader=Blue, X-Request-Red
+            # 这会将 /mypath 添加到所有匹配请求的路径中。所以对 /hello 的请求将被发送到 /mypath/hello 。
+            - PrefixPath=/mypath
+            # 路由过滤器检查该属性以确定是否应发送原始主机header，而不是 HTTP 客户端确定的主机标头
+            - PreserveHostHeader
+            # 在向下游发送之前 删除请求头
+            - RemoveRequestHeader=X-Request-Foo
+            # 响应返回到网关客户端之前 删除响应头
+            - RemoveResponseHeader=X-Response-Foo
+            # 在向下游发送之前删除 请求参数
+            - RemoveRequestParameter=red
+            # 如果任何请求标头的大小大于 1000 字节，这将发送状态 431。
+            - RequestHeaderSize=1000B
+            # 这使用 Java 正则表达式作为一种灵活的方式来重写请求路径
+            #  对于 /red/blue 的请求路径，这会在发出下游请求之前将路径设置为 /blue 。请注意，由于 YAML 规范， $ 应替换为 $\ 。
+            - RewritePath=/red/?(?<segment>.*), /$\{segment}
+            # 对 location 进行修改。具体的规则可以看官方文档，挺复杂的
+            - RewriteLocationResponseHeader=AS_IN_REQUEST, Location, ,
+            # name 、 regexp 和 replacement 参数。它使用 Java 正则表达式以灵活的方式重写响应标头值
+            - RewriteResponseHeader=X-Response-Red, password=[^&]+, password=***
+            # 将调用转发到下游之前强制执行 WebSession::save 操作
+            - SaveSession
+            # 修改path
+            - SetPath=/{segment}
+            # 设置请求头的值
+            - SetRequestHeader=X-Request-Red, Blue
+            # 设置响应头
+            - SetResponseHeader=X-Response-Red, Blue
+            # 设置响应的状态码
+            - SetStatus=401
+            # parts 参数指示在将请求发送到下游之前要从请求中剥离的路径中的部分数
+            - StripPrefix=2
+            # 当请求大小大于允许的限制时， RequestSize GatewayFilter 工厂可以限制请求到达下游服务
+            - name: RequestSize
+              args:
+                maxSize: 5000000
+            # 将主机标头的值替换为 example.org
+            - name: SetRequestHostHeader
+              args:
+                host: example.org
+            - name: CacheRequestBody
+              args:
+                bodyClass: java.lang.String
+        - id: prefixpath_route
+          uri: https://example.org
+          filters:
+            # 重定向
+            - RedirectTo=302, https://acme.org

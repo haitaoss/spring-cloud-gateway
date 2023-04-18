@@ -1,0 +1,15 @@
+# Spring Cloud CircuitBreaker 过滤器还可以接受可选的 fallbackUri 参数。目前，仅支持 forward: 计划的 URI。如果调用回退，请求将转发到与 URI 匹配的控制器。以下示例配置了这样的回退
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: circuitbreaker_route
+          uri: lb://backing-service:8088
+          predicates:
+            - Path=/consumingServiceEndpoint
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: myCircuitBreaker
+                fallbackUri: forward:/inCaseOfFailureUseThis
+            - RewritePath=/consumingServiceEndpoint, /backingServiceEndpoint

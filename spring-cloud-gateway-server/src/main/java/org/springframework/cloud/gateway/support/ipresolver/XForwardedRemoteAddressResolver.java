@@ -108,9 +108,12 @@ public class XForwardedRemoteAddressResolver implements RemoteAddressResolver {
 	 */
 	@Override
 	public InetSocketAddress resolve(ServerWebExchange exchange) {
+		// 获取请求头 X-Forwarded-For 的值
 		List<String> xForwardedValues = extractXForwardedValues(exchange);
+		// 反转
 		Collections.reverse(xForwardedValues);
 		if (!xForwardedValues.isEmpty()) {
+			// 取最小值 减一 作为下表
 			int index = Math.min(xForwardedValues.size(), maxTrustedIndex) - 1;
 			return new InetSocketAddress(xForwardedValues.get(index), 0);
 		}
