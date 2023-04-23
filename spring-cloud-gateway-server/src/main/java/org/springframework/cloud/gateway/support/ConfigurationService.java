@@ -241,13 +241,15 @@ public class ConfigurationService implements ApplicationEventPublisherAware {
 				this.normalizedProperties = normalizeProperties();
 			}
 
+			// 实例化bean 然后 进行属性绑定(会使用 conversionService、Validator)
 			T bound = doBind();
 
 			if (this.eventFunction != null && this.service.publisher != null) {
 				ApplicationEvent applicationEvent = this.eventFunction.apply(bound, this.normalizedProperties);
+				// 发布事件
 				this.service.publisher.publishEvent(applicationEvent);
 			}
-
+			// 返回创建好的bean
 			return bound;
 		}
 

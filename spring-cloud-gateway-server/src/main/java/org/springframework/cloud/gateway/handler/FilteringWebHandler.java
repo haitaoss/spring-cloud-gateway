@@ -76,8 +76,12 @@ public class FilteringWebHandler implements WebHandler {
 		Route route = exchange.getRequiredAttribute(GATEWAY_ROUTE_ATTR);
 		List<GatewayFilter> gatewayFilters = route.getFilters();
 
+		// 先添加 globalFilter
 		List<GatewayFilter> combined = new ArrayList<>(this.globalFilters);
+		// 再添加 route 定义的 Filter
 		combined.addAll(gatewayFilters);
+
+		// 排序
 		// TODO: needed or cached?
 		AnnotationAwareOrderComparator.sort(combined);
 
@@ -85,6 +89,7 @@ public class FilteringWebHandler implements WebHandler {
 			logger.debug("Sorted gatewayFilterFactories: " + combined);
 		}
 
+		// 将流程委托给 filter 执行
 		return new DefaultGatewayFilterChain(combined).filter(exchange);
 	}
 

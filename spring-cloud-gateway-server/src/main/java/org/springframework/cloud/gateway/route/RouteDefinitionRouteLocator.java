@@ -117,6 +117,7 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 		AsyncPredicate<ServerWebExchange> predicate = combinePredicates(routeDefinition);
 		List<GatewayFilter> gatewayFilters = getFilters(routeDefinition);
 
+		// 构造出 Route
 		return Route.async(routeDefinition).asyncPredicate(predicate).replaceFilters(gatewayFilters).build();
 	}
 

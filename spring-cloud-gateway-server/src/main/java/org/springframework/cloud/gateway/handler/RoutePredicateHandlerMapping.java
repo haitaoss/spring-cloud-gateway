@@ -18,6 +18,7 @@ package org.springframework.cloud.gateway.handler;
 
 import java.util.function.Function;
 
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import org.springframework.cloud.gateway.config.GatewayProperties;
@@ -121,17 +122,22 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 
 	protected Mono<Route> lookupRoute(ServerWebExchange exchange) {
 		return this.routeLocator.getRoutes()
+				/**
+				 * concatMap 的特点是 返回的内容不是 Mono.empty() 、Flux.empty() 才收集到 Flux 中
+				 * */
 				// individually filter routes so that filterWhen error delaying is not a
 				// problem
 				.concatMap(route -> Mono.just(route).filterWhen(r -> {
 					// add the current route we are testing
 					exchange.getAttributes().put(GATEWAY_PREDICATE_ROUTE_ATTR, r.getId());
+					// 执行谓词
 					return r.getPredicate().apply(exchange);
 				})
 						// instead of immediately stopping main flux due to error, log and
 						// swallow it
 						.doOnError(e -> logger.error("Error applying predicate for route: " + route.getId(), e))
 						.onErrorResume(e -> Mono.empty()))
+				// 拿到第一个
 				// .defaultIfEmpty() put a static Route not found
 				// or .switchIfEmpty()
 				// .switchIfEmpty(Mono.<Route>empty().log("noroute"))
