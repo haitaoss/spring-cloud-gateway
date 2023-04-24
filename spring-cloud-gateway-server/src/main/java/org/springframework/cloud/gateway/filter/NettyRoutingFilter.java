@@ -112,9 +112,11 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 		URI requestUrl = exchange.getRequiredAttribute(GATEWAY_REQUEST_URL_ATTR);
 
 		String scheme = requestUrl.getScheme();
+		// 已经路由 或者 不是 http、https 就放心
 		if (isAlreadyRouted(exchange) || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
 			return chain.filter(exchange);
 		}
+		// 设置一个属性，标记 已经路由了
 		setAlreadyRouted(exchange);
 
 		ServerHttpRequest request = exchange.getRequest();

@@ -1,0 +1,10 @@
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: id1
+          uri: http://localhost:8080
+          predicates:
+            - Path=/index/**
+          filters:
+            - RewritePath=/index/?(?<segment>.*), /$\{segment}

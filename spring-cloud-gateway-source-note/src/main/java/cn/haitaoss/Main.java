@@ -3,6 +3,7 @@ package cn.haitaoss;
 import cn.haitaoss.config.MyRoutePredicateFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -11,6 +12,8 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.cloud.gateway.config.PropertiesRouteDefinitionLocator;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.cloud.gateway.filter.NettyRoutingFilter;
+import org.springframework.cloud.gateway.filter.WebsocketRoutingFilter;
 import org.springframework.cloud.gateway.filter.factory.GatewayFilterFactory;
 import org.springframework.cloud.gateway.route.RouteDefinitionRouteLocator;
 import org.springframework.cloud.gateway.support.ipresolver.RemoteAddressResolver;
@@ -18,8 +21,14 @@ import org.springframework.cloud.gateway.support.ipresolver.XForwardedRemoteAddr
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.netty.http.server.HttpServerRequest;
+
+import java.util.ArrayList;
 
 /**
  * @author haitao.chen
@@ -28,6 +37,7 @@ import reactor.core.publisher.Mono;
  *
  */
 @SpringBootApplication
+@RestController
 public class Main {
     /**
      * 如果包含启动器，但不希望启用网关，请设置 spring.cloud.gateway.enabled=false 。
@@ -454,8 +464,23 @@ public class Main {
     /**
      * 您应该为您可能想要这样做的任何路由配置此过滤器 spring.cloud.gateway.default-filters
      * */
+
+    @Autowired
+    private ObjectProvider<HttpServerRequest> request;
+
+    @RequestMapping("/index")
+    public Object index() {
+        return "ok....";
+    }
+
     public static void main(String[] args) {
-        SpringApplication.run(Main.class, args);
+        ConfigurableApplicationContext context = SpringApplication.run(Main.class, args);
+
+        Flux<String> stringFlux = Flux.just("a", "b");
+        Flux<ArrayList<String>> just = Flux.just(new ArrayList<String>());
+
+        Mono<String> a = Mono.just("a");
+        Mono<ArrayList<String>> just1 = Mono.just(new ArrayList<String>());
     }
     /**
      * 自动装配
@@ -481,15 +506,20 @@ public class Main {
      * */
     /**
      * GatewayAutoConfiguration
-     *      注册了 FilteringWebHandler
+     *      RouteLocatorBuilder
+     *      CompositeRouteDefinitionLocator、PropertiesRouteDefinitionLocator、InMemoryRouteDefinitionRepository
+     *      CachingRouteLocator、CompositeRouteLocator、RouteDefinitionRouteLocator
+     *      FilteringWebHandler
      *      RoutePredicateHandlerMapping
      *      HttpHeadersFilter
      *      GlobalFilter
      *      GatewayFilterFactory
      *      RoutePredicateFactory
+     *      NettyConfiguration、GatewayActuatorConfiguration
      *
-     *      NettyWriteResponseFilter 这是第一个执行的 GlobalFilter 其作用类似于后置通知，待所有的 Filter 执行完之后，在执行发送请求的逻辑
-     *
+     *      {@link NettyRoutingFilter#filter(ServerWebExchange, GatewayFilterChain)} 这是最后一个执行的 GlobalFilter 其作用是发送发送请求的逻辑。执行 http、https 请求
+     *      {@link WebsocketRoutingFilter#filter(ServerWebExchange, GatewayFilterChain)} 这是执行 ws 请求
+     *             这两个都依赖 List<HttpHeadersFilter> 用来设置 头
      *      通过这两个类 实现了GateWay的功能 RoutePredicateHandlerMapping -> FilteringWebHandler
      *      是由 SimpleHandlerAdapter 来适配 RoutePredicateHandlerMapping
      *      RoutePredicateHandlerMapping 依赖 RouteLocator 得到 Route。

@@ -187,17 +187,32 @@ public class GatewayAutoConfiguration {
 		return new StringToZonedDateTimeConverter();
 	}
 
+	/**
+	 * 就是一个工具类，可以用来构造出 RouteLocator 实例
+	 * @param context
+	 * @return
+	 */
 	@Bean
 	public RouteLocatorBuilder routeLocatorBuilder(ConfigurableApplicationContext context) {
 		return new RouteLocatorBuilder(context);
 	}
 
+	/**
+	 * 实现 RouteDefinitionLocator 接口，其特点是根据 GatewayProperties(配置文件中定义的route) 的内容返回 List<RouteDefinition>
+	 * @param properties
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public PropertiesRouteDefinitionLocator propertiesRouteDefinitionLocator(GatewayProperties properties) {
 		return new PropertiesRouteDefinitionLocator(properties);
 	}
 
+	/**
+	 * 实现 RouteDefinitionRepository 接口，定义如何 save、delete RouteDefinition
+	 * 实现 RouteDefinitionLocator 接口，其特点是从 缓存中返回 List<RouteDefinition>
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnMissingBean(RouteDefinitionRepository.class)
 	public InMemoryRouteDefinitionRepository inMemoryRouteDefinitionRepository() {
@@ -210,6 +225,13 @@ public class GatewayAutoConfiguration {
 		return new CompositeRouteDefinitionLocator(Flux.fromIterable(routeDefinitionLocators));
 	}
 
+	/**
+	 * 是一个工具类，是用来实例化类的，实例化时会进行属性绑定和属性校验
+	 * @param beanFactory
+	 * @param conversionService
+	 * @param validator
+	 * @return
+	 */
 	@Bean
 	public ConfigurationService gatewayConfigurationService(BeanFactory beanFactory,
 			@Qualifier("webFluxConversionService") ObjectProvider<ConversionService> conversionService,
@@ -217,6 +239,15 @@ public class GatewayAutoConfiguration {
 		return new ConfigurationService(beanFactory, conversionService, validator);
 	}
 
+	/**
+	 * RouteLocator 接口是用来生成 Flux<Route> 的。
+	 * @param properties
+	 * @param gatewayFilters
+	 * @param predicates
+	 * @param routeDefinitionLocator
+	 * @param configurationService
+	 * @return
+	 */
 	@Bean
 	public RouteLocator routeDefinitionRouteLocator(GatewayProperties properties,
 			List<GatewayFilterFactory> gatewayFilters, List<RoutePredicateFactory> predicates,
@@ -225,6 +256,11 @@ public class GatewayAutoConfiguration {
 				configurationService);
 	}
 
+	/**
+	 * 聚合所有的 RouteLocator 。所以我们可以自定义 RouteLocator 自定义路由
+	 * @param routeLocators
+	 * @return
+	 */
 	@Bean
 	@Primary
 	@ConditionalOnMissingBean(name = "cachedCompositeRouteLocator")
@@ -233,12 +269,24 @@ public class GatewayAutoConfiguration {
 		return new CachingRouteLocator(new CompositeRouteLocator(Flux.fromIterable(routeLocators)));
 	}
 
+	/**
+	 * 实现 ApplicationListener<ApplicationEvent> 接口，
+	 * 收到关心的事件(ContextRefreshedEvent、RefreshScopeRefreshedEvent、InstanceRegisteredEvent、ParentHeartbeatEvent、HeartbeatEvent)
+	 * 就会 发布一个 RefreshRoutesEvent 事件
+	 * @param publisher
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnClass(name = "org.springframework.cloud.client.discovery.event.HeartbeatMonitor")
 	public RouteRefreshListener routeRefreshListener(ApplicationEventPublisher publisher) {
 		return new RouteRefreshListener(publisher);
 	}
 
+	/**
+	 * 实现 WebHandler 接口，可以理解成 Handler，是用来执行具体逻辑的
+	 * @param globalFilters
+	 * @return
+	 */
 	@Bean
 	public FilteringWebHandler filteringWebHandler(List<GlobalFilter> globalFilters) {
 		return new FilteringWebHandler(globalFilters);
@@ -249,6 +297,15 @@ public class GatewayAutoConfiguration {
 		return new GlobalCorsProperties();
 	}
 
+	/**
+	 * 继承 AbstractHandlerMapping。DispatcherHandler 会使用它来匹配 Request，匹配了就用来执行，
+	 * 它的执行逻辑是交给 FilteringWebHandler 来做
+	 * @param webHandler
+	 * @param routeLocator
+	 * @param globalCorsProperties
+	 * @param environment
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public RoutePredicateHandlerMapping routePredicateHandlerMapping(FilteringWebHandler webHandler,

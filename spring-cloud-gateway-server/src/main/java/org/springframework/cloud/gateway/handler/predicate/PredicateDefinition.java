@@ -48,11 +48,14 @@ public class PredicateDefinition {
 			throw new ValidationException(
 					"Unable to parse PredicateDefinition text '" + text + "'" + ", must be of the form name=value");
 		}
+		// 设置为 name
 		setName(text.substring(0, eqIdx));
 
+		// 按照 , 分割转成数组
 		String[] args = tokenizeToStringArray(text.substring(eqIdx + 1), ",");
 
 		for (int i = 0; i < args.length; i++) {
+			// 随机生成 key
 			this.args.put(NameUtils.generateName(i), args[i]);
 		}
 	}
