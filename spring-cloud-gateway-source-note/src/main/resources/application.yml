@@ -2,14 +2,15 @@ spring:
   cloud:
     gateway:
       default-filters:
+        # 这是正则分组的语法
         - RewritePath=/index/?(?<segment>.*), /$\{segment}
         - RewritePath=/weight/?(?<segment>.*), /index
+        - RouteId
       routes:
         - id: id1
           uri: http://localhost:8080
           predicates:
             - Path=/index/**
-
         - id: weight_high
           uri: http://localhost:8080
           predicates:

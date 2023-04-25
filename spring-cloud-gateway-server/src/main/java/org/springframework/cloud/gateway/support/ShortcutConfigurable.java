@@ -16,33 +16,19 @@
 
 package org.springframework.cloud.gateway.support;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.context.expression.BeanFactoryResolver;
 import org.springframework.core.env.Environment;
-import org.springframework.expression.BeanResolver;
-import org.springframework.expression.ConstructorResolver;
-import org.springframework.expression.EvaluationContext;
-import org.springframework.expression.Expression;
-import org.springframework.expression.MethodResolver;
-import org.springframework.expression.OperatorOverloader;
-import org.springframework.expression.PropertyAccessor;
-import org.springframework.expression.TypeComparator;
-import org.springframework.expression.TypeConverter;
-import org.springframework.expression.TypeLocator;
-import org.springframework.expression.TypedValue;
+import org.springframework.expression.*;
 import org.springframework.expression.common.TemplateParserContext;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.ReflectivePropertyAccessor;
 import org.springframework.expression.spel.support.SimpleEvaluationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author Spencer Gibb
@@ -63,8 +49,10 @@ public interface ShortcutConfigurable {
 		Object value;
 		String rawValue = entryValue;
 		if (rawValue != null) {
+			// 去除空格
 			rawValue = rawValue.trim();
 		}
+		// 使用 #{} 那就进行 spel 的解析
 		if (rawValue != null && rawValue.startsWith("#{") && entryValue.endsWith("}")) {
 			// assume it's spel
 			GatewayEvaluationContext context = new GatewayEvaluationContext(beanFactory);
@@ -100,11 +88,21 @@ public interface ShortcutConfigurable {
 			public Map<String, Object> normalize(Map<String, String> args, ShortcutConfigurable shortcutConf,
 					SpelExpressionParser parser, BeanFactory beanFactory) {
 				Map<String, Object> map = new HashMap<>();
+				// 记录索引。因为有默认的名字，所以通过索引确定是第几个
 				int entryIdx = 0;
 				for (Map.Entry<String, String> entry : args.entrySet()) {
+					/**
+					 * 拿到 key。
+					 *
+					 * 若 key 是默认生成的("_genkey_") 就根据索引获取从 {@link ShortcutConfigurable#shortcutFieldOrder()} 得到 key，
+					 * */
 					String key = normalizeKey(entry.getKey(), entryIdx, shortcutConf, args);
+					/**
+					 * 对 value 去除空格，然后若是 #{xx} 那就进行 SPEL 解析 得到value
+					 * */
 					Object value = getValue(parser, beanFactory, entry.getValue());
 
+					// 记录到Map中
 					map.put(key, value);
 					entryIdx++;
 				}
@@ -119,9 +117,12 @@ public interface ShortcutConfigurable {
 				Map<String, Object> map = new HashMap<>();
 				// field order should be of size 1
 				List<String> fieldOrder = shortcutConf.shortcutFieldOrder();
+				// 只能有一个
 				Assert.isTrue(fieldOrder != null && fieldOrder.size() == 1,
 						"Shortcut Configuration Type GATHER_LIST must have shortcutFieldOrder of size 1");
+				// 获取name
 				String fieldName = fieldOrder.get(0);
+				// 对 value 去除空格，然后若是 #{xx} 那就进行 SPEL 解析 得到value
 				map.put(fieldName, args.values().stream().map(value -> getValue(parser, beanFactory, value))
 						.collect(Collectors.toList()));
 				return map;
@@ -136,19 +137,24 @@ public interface ShortcutConfigurable {
 				Map<String, Object> map = new HashMap<>();
 				// field order should be of size 1
 				List<String> fieldOrder = shortcutConf.shortcutFieldOrder();
+				// 只能有两个名字
 				Assert.isTrue(fieldOrder != null && fieldOrder.size() == 2,
 						"Shortcut Configuration Type GATHER_LIST_HEAD must have shortcutFieldOrder of size 2");
 				List<String> values = new ArrayList<>(args.values());
 				if (!values.isEmpty()) {
 					// strip boolean flag if last entry is true or false
 					int lastIdx = values.size() - 1;
+					// 获取最后一个参数的值
 					String lastValue = values.get(lastIdx);
+					// 值是  true 或者 false
 					if (lastValue.equalsIgnoreCase("true") || lastValue.equalsIgnoreCase("false")) {
+						// 记录拿到前面的所有值
 						values = values.subList(0, lastIdx);
 						map.put(fieldOrder.get(1), getValue(parser, beanFactory, lastValue));
 					}
 				}
 				String fieldName = fieldOrder.get(0);
+				// 前面的参数值 收集成List
 				map.put(fieldName, values.stream().map(value -> getValue(parser, beanFactory, value))
 						.collect(Collectors.toList()));
 				return map;

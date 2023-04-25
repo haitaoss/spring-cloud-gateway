@@ -4,13 +4,12 @@ import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.cloud.gateway.filter.OrderedGatewayFilter;
-import org.springframework.cloud.gateway.filter.factory.AbstractNameValueGatewayFilterFactory;
+import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
@@ -27,16 +26,19 @@ import java.util.Map;
  */
 @Component
 public class MyGlobalFilter {
-    @Component
+//    @Component
     public static class RouteIdGlobalFilter implements GlobalFilter, Ordered {
         @Override
         public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
             Map<String, String> map = new HashMap<>(1);
-            map.put("routeId", exchange.getAttributeOrDefault(
-                    ServerWebExchangeUtils.GATEWAY_PREDICATE_MATCHED_PATH_ROUTE_ID_ATTR,
-                    "empty"));
+            map.put("routeId",
+                    exchange.getAttributeOrDefault(ServerWebExchangeUtils.GATEWAY_PREDICATE_MATCHED_PATH_ROUTE_ID_ATTR,
+                            "empty"
+                    )
+            );
             ServerWebExchangeUtils.putUriTemplateVariables(exchange, map);
-            return chain.filter(exchange).then();
+            return chain.filter(exchange)
+                    .then();
         }
 
         @Override
@@ -55,11 +57,10 @@ public class MyGlobalFilter {
                                 // circuitBreaker WebFilter
                                 //.circuitBreaker(config -> config.setName("myCircuitBreaker").setFallbackUri("forward:/inCaseOfFailureUseThis"))
                                 // rewritePath WebFilter
-                                .rewritePath("/consumingServiceEndpoint", "/backingServiceEndpoint")
-                        )
+                                .rewritePath("/consumingServiceEndpoint", "/backingServiceEndpoint"))
                         // 路由的目标地址
-                        .uri("lb://backing-service:8088")
-                ).build();
+                        .uri("lb://backing-service:8088"))
+                .build();
     }
 
 
@@ -69,34 +70,39 @@ public class MyGlobalFilter {
                 .then(Mono.just(exchange))
                 .map(serverWebExchange -> {
                     //adds header to response
-                    serverWebExchange.getResponse().getHeaders().set("CUSTOM-RESPONSE-HEADER",
-                            HttpStatus.OK.equals(serverWebExchange.getResponse().getStatusCode()) ? "It worked" : "It did not work");
+                    serverWebExchange.getResponse()
+                            .getHeaders()
+                            .set("CUSTOM-RESPONSE-HEADER", HttpStatus.OK.equals(serverWebExchange.getResponse()
+                                    .getStatusCode()) ? "It worked" : "It did not work");
                     return serverWebExchange;
                 })
                 .then();
     }
 
-    // @Bean
-    public AbstractNameValueGatewayFilterFactory RouteIdGatewayFilterFactory() {
-        return new AbstractNameValueGatewayFilterFactory() {
+    @Bean
+    public AbstractGatewayFilterFactory RouteIdGatewayFilterFactory() {
+        return new AbstractGatewayFilterFactory<Object>() {
+
             @Override
             public String name() {
                 return "RouteId";
             }
 
             @Override
-            public GatewayFilter apply(NameValueConfig config) {
-                return new GatewayFilter() {
+            public GatewayFilter apply(Object config) {
+
+                GatewayFilter gatewayFilter = new GatewayFilter() {
                     @Override
                     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
                         Map<String, String> map = new HashMap<>(1);
                         map.put("routeId", exchange.getAttributeOrDefault(
-                                ServerWebExchangeUtils.GATEWAY_PREDICATE_MATCHED_PATH_ROUTE_ID_ATTR,
-                                "empty"));
+                                ServerWebExchangeUtils.GATEWAY_PREDICATE_MATCHED_PATH_ROUTE_ID_ATTR, "empty"));
                         ServerWebExchangeUtils.putUriTemplateVariables(exchange, map);
+
                         return chain.filter(exchange);
                     }
                 };
+                return new OrderedGatewayFilter(gatewayFilter, -1);
             }
         };
     }

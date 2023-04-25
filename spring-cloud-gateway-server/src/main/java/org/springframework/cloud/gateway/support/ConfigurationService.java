@@ -16,13 +16,6 @@
 
 package org.springframework.cloud.gateway.support;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.BiFunction;
-import java.util.function.Supplier;
-
 import org.springframework.aop.framework.Advised;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.BeanFactory;
@@ -41,6 +34,13 @@ import org.springframework.core.convert.ConversionService;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.util.Assert;
 import org.springframework.validation.Validator;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 public class ConfigurationService implements ApplicationEventPublisherAware {
 
@@ -137,6 +137,22 @@ public class ConfigurationService implements ApplicationEventPublisherAware {
 		@Override
 		protected Map<String, Object> normalizeProperties() {
 			if (this.service.beanFactory != null) {
+				/**
+				 * 就是处理 properties 的内容重新生成一个Map。默认是有三种策略：
+				 * {@link ShortcutConfigurable.ShortcutType#DEFAULT}
+				 * 		遍历 properties 收集成 Map
+				 *  	1. 若 key 是默认生成的("_genkey_") 就根据索引获取从 {@link ShortcutConfigurable#shortcutFieldOrder()} 得到 key，
+				 *  	2. 对 value 去除空格，然后若是 #{xx} 那就进行 SPEL 解析 得到value
+				 *
+				 * {@link ShortcutConfigurable.ShortcutType#GATHER_LIST}
+				 * 		只有一个 key。key是 {@link ShortcutConfigurable#shortcutFieldOrder()} 设置的，
+				 * 		value 是，遍历 properties 的 value，对 value 去除空格，然后若是 #{xx} 那就进行 SPEL 解析得到value，最后收集成 List
+				 *
+				 * {@link ShortcutConfigurable.ShortcutType#GATHER_LIST_TAIL_FLAG}
+				 * 		至多有两个key。key是 {@link ShortcutConfigurable#shortcutFieldOrder()} 设置的。
+				 * 		若最后一个属性值是 true | false 那就作为第二key的值，前面的参数值收集成List作为第一个key的值，
+				 * 		否则，全部参数值收集成List作为第一个key的值。
+				 * */
 				return this.configurable.shortcutType().normalize(this.properties, this.configurable,
 						this.service.parser, this.service.beanFactory);
 			}
@@ -238,10 +254,18 @@ public class ConfigurationService implements ApplicationEventPublisherAware {
 					"properties and normalizedProperties both may not be null");
 
 			if (this.normalizedProperties == null) {
+				/**
+				 * 初始化属性
+				 *
+				 * {@link ConfigurableBuilder#normalizeProperties()}
+				 * */
 				this.normalizedProperties = normalizeProperties();
 			}
 
-			// 实例化bean 然后 进行属性绑定(会使用 conversionService、Validator)
+			/**
+			 * 实例化bean 然后 进行属性绑定(会使用 conversionService、Validator)
+			 * 属性绑定用到的属性来源是 normalizedProperties
+			 * */
 			T bound = doBind();
 
 			if (this.eventFunction != null && this.service.publisher != null) {

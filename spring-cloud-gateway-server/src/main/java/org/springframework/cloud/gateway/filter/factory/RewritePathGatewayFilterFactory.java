@@ -16,16 +16,15 @@
 
 package org.springframework.cloud.gateway.filter.factory;
 
-import java.util.Arrays;
-import java.util.List;
-
-import reactor.core.publisher.Mono;
-
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.util.Assert;
 import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
+
+import java.util.Arrays;
+import java.util.List;
 
 import static org.springframework.cloud.gateway.support.GatewayToStringStyler.filterToStringCreator;
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_REQUEST_URL_ATTR;
@@ -58,17 +57,22 @@ public class RewritePathGatewayFilterFactory
 
 	@Override
 	public GatewayFilter apply(Config config) {
+		// 字符串替换。因为 yml 是使用 $\ 表示 $ 的，所以这里需要处理一下
 		String replacement = config.replacement.replace("$\\", "$");
 		return new GatewayFilter() {
 			@Override
 			public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
 				ServerHttpRequest req = exchange.getRequest();
+				// exchange 中记录下 原始URI
 				addOriginalRequestUrl(exchange, req.getURI());
 				String path = req.getURI().getRawPath();
+				// 根据 config 配置的内容，替换掉 path
 				String newPath = path.replaceAll(config.regexp, replacement);
 
+				// 使用 newPath 构造出 request
 				ServerHttpRequest request = req.mutate().path(newPath).build();
 
+				// 存到 exchange 中
 				exchange.getAttributes().put(GATEWAY_REQUEST_URL_ATTR, request.getURI());
 
 				return chain.filter(exchange.mutate().request(request).build());

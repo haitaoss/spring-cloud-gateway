@@ -16,14 +16,8 @@
 
 package org.springframework.cloud.gateway.handler.predicate;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.function.Predicate;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
 import org.springframework.core.style.ToStringCreator;
 import org.springframework.http.server.PathContainer;
 import org.springframework.validation.annotation.Validated;
@@ -32,10 +26,12 @@ import org.springframework.web.util.pattern.PathPattern;
 import org.springframework.web.util.pattern.PathPattern.PathMatchInfo;
 import org.springframework.web.util.pattern.PathPatternParser;
 
-import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_PREDICATE_MATCHED_PATH_ATTR;
-import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_PREDICATE_MATCHED_PATH_ROUTE_ID_ATTR;
-import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_PREDICATE_ROUTE_ATTR;
-import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.putUriTemplateVariables;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Predicate;
+
+import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.*;
 import static org.springframework.http.server.PathContainer.parsePath;
 
 /**
@@ -81,28 +77,36 @@ public class PathRoutePredicateFactory extends AbstractRoutePredicateFactory<Pat
 		final ArrayList<PathPattern> pathPatterns = new ArrayList<>();
 		synchronized (this.pathPatternParser) {
 			pathPatternParser.setMatchOptionalTrailingSeparator(config.isMatchTrailingSlash());
+			// 遍历配置的路径
 			config.getPatterns().forEach(pattern -> {
+				// 生成 pathPattern
 				PathPattern pathPattern = this.pathPatternParser.parse(pattern);
+				// 记录
 				pathPatterns.add(pathPattern);
 			});
 		}
 		return new GatewayPredicate() {
 			@Override
 			public boolean test(ServerWebExchange exchange) {
+				// 请求的 path
 				PathContainer path = parsePath(exchange.getRequest().getURI().getRawPath());
 
 				PathPattern match = null;
 				for (int i = 0; i < pathPatterns.size(); i++) {
 					PathPattern pathPattern = pathPatterns.get(i);
+					// 当前请求路径 符合配置的路径
 					if (pathPattern.matches(path)) {
 						match = pathPattern;
 						break;
 					}
 				}
 
+				// 不为空表示匹配了
 				if (match != null) {
 					traceMatch("Pattern", match.getPatternString(), path, true);
+					// 拿到匹配参数
 					PathMatchInfo pathMatchInfo = match.matchAndExtract(path);
+					// 设置到 exchange 中
 					putUriTemplateVariables(exchange, pathMatchInfo.getUriVariables());
 					exchange.getAttributes().put(GATEWAY_PREDICATE_MATCHED_PATH_ATTR, match.getPatternString());
 					String routeId = (String) exchange.getAttributes().get(GATEWAY_PREDICATE_ROUTE_ATTR);

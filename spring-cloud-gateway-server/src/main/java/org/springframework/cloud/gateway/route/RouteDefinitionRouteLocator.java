@@ -16,16 +16,8 @@
 
 package org.springframework.cloud.gateway.route;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import reactor.core.publisher.Flux;
-
 import org.springframework.cloud.gateway.config.GatewayProperties;
 import org.springframework.cloud.gateway.event.FilterArgsEvent;
 import org.springframework.cloud.gateway.event.PredicateArgsEvent;
@@ -42,6 +34,9 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Flux;
+
+import java.util.*;
 
 /**
  * {@link RouteLocator} that loads routes from a {@link RouteDefinitionLocator}.
@@ -72,6 +67,11 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 			GatewayProperties gatewayProperties, ConfigurationService configurationService) {
 		this.routeDefinitionLocator = routeDefinitionLocator;
 		this.configurationService = configurationService;
+		/**
+		 * 将 List 转成 Map，默认的key是类名取出RoutePredicateFactory
+		 * 比如 AddHeadRoutePredicateFactory 的key是 AddHead
+		 * 		{@link GatewayFilterFactory#name()}
+		 * */
 		initFactories(predicates);
 		gatewayFilterFactories.forEach(factory -> this.gatewayFilterFactories.put(factory.name(), factory));
 		this.gatewayProperties = gatewayProperties;
@@ -114,6 +114,9 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 	}
 
 	private Route convertToRoute(RouteDefinition routeDefinition) {
+		/**
+		 *
+		 * */
 		AsyncPredicate<ServerWebExchange> predicate = combinePredicates(routeDefinition);
 		List<GatewayFilter> gatewayFilters = getFilters(routeDefinition);
 
@@ -189,10 +192,13 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 			// this is a very rare case, but possible, just match all
 			return AsyncPredicate.from(exchange -> true);
 		}
+
+		// 获取 AsyncPredicate
 		AsyncPredicate<ServerWebExchange> predicate = lookup(routeDefinition, predicates.get(0));
 
 		for (PredicateDefinition andPredicate : predicates.subList(1, predicates.size())) {
 			AsyncPredicate<ServerWebExchange> found = lookup(routeDefinition, andPredicate);
+			// and 的连接多个 predicate
 			predicate = predicate.and(found);
 		}
 
@@ -201,6 +207,10 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 
 	@SuppressWarnings("unchecked")
 	private AsyncPredicate<ServerWebExchange> lookup(RouteDefinition route, PredicateDefinition predicate) {
+		/**
+		 * predicates 是 BeanFactory 中 RoutePredicateFactory 类型的 bean。
+		 * 所以可以理解成是从 BeanFactory 中得到 RoutePredicateFactory
+		 * */
 		RoutePredicateFactory<Object> factory = this.predicates.get(predicate.getName());
 		if (factory == null) {
 			throw new IllegalArgumentException("Unable to find RoutePredicateFactory with name " + predicate.getName());
@@ -210,15 +220,22 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 					+ predicate.getName());
 		}
 
+		/**
+		 * 根据 factory 知道配置类的类型、属性Map
+		 * configurationService 根据 属性Map 生成配置类，并进行属性绑定和属性校验(JSR303)
+		 * */
 		// @formatter:off
 		Object config = this.configurationService.with(factory)
 				.name(predicate.getName())
+				// 设置属性。会根据属性生成属性Map
 				.properties(predicate.getArgs())
+				// 定义事件
 				.eventFunction((bound, properties) -> new PredicateArgsEvent(
 						RouteDefinitionRouteLocator.this, route.getId(), properties))
 				.bind();
 		// @formatter:on
 
+		// 根据 config 使用 factory 生成 AsyncPredicate
 		return factory.applyAsync(config);
 	}
 

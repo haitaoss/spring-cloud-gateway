@@ -1,3 +1,7 @@
 ### index
 GET http://localhost:8080/index/index
 Accept: application/json
+
+### weight
+GET http://localhost:8080/weight/x
+Accept: application/json

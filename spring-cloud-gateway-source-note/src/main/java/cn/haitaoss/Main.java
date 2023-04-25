@@ -1,26 +1,17 @@
 package cn.haitaoss;
 
 import cn.haitaoss.config.MyRoutePredicateFactory;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.web.reactive.HttpHandlerAutoConfiguration;
-import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.cloud.gateway.config.PropertiesRouteDefinitionLocator;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
-import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.cloud.gateway.filter.NettyRoutingFilter;
 import org.springframework.cloud.gateway.filter.WebsocketRoutingFilter;
-import org.springframework.cloud.gateway.filter.factory.GatewayFilterFactory;
+import org.springframework.cloud.gateway.route.RouteDefinition;
 import org.springframework.cloud.gateway.route.RouteDefinitionRouteLocator;
-import org.springframework.cloud.gateway.support.ipresolver.RemoteAddressResolver;
-import org.springframework.cloud.gateway.support.ipresolver.XForwardedRemoteAddressResolver;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.context.annotation.Bean;
-import org.springframework.core.Ordered;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,21 +33,10 @@ import java.util.concurrent.ThreadLocalRandom;
 @RestController
 public class Main {
     /**
-     * 如果包含启动器，但不希望启用网关，请设置 spring.cloud.gateway.enabled=false 。
-     * 这里没看懂是啥意思 https://docs.spring.io/spring-cloud-gateway/docs/3.1.5/reference/html/#modifying-the-way-remote-addresses-are-resolved
-     *
-     *
-     * 权重路由谓词工厂 咋实现的？？？
-     *      https://docs.spring.io/spring-cloud-gateway/docs/3.1.5/reference/html/#the-weight-route-predicate-factory
-     *
-     * */
-    /**
      * Route Predicate Factories（路由谓词工厂）
      *      Spring Cloud Gateway 将路由作为 Spring WebFlux HandlerMapping 基础设施的一部分进行匹配。 Spring Cloud Gateway 包含许多内置的路由谓词工厂。所有这些谓词都匹配 HTTP 请求的不同属性。您可以将多个路由谓词工厂与逻辑 and 语句结合起来。
      *
      *      The After Route Predicate Factory
-     *          After 路由谓词工厂采用一个参数， datetime （这是一个 java ZonedDateTime ）。此谓词匹配指定日期时间之后发生的请求。下面的例子配置了一个路由谓词：
-     *
      *      The Before Route Predicate Factory
      *      The Between Route Predicate Factory
      *      The Cookie Route Predicate Factory
@@ -71,9 +51,7 @@ public class Main {
      *          RemoteAddressResolver resolver = XForwardedRemoteAddressResolver
      *          .maxTrustedIndex(1);
      *
-     *     The Weight Route Predicate Factory（重点看看源码，这是咋实现的）
-     *          Weight 路由谓词工厂有两个参数： group 和 weight （一个整数）。权重按组计算。以下示例配置权重路由谓词：
-     *
+     *     The Weight Route Predicate Factory
      *     The XForwarded Remote Addr Route Predicate Factory
      *
      *
@@ -559,10 +537,13 @@ public class Main {
      *
      *
      * 重点将一下 WeightRoutePredicateFactory、WeightCalculatorWebFilter 的实现逻辑
-     *
+     * PathRoutePredicateFactory 会提取占位符，设置到 exchange 中
      * 整理类图：AbstractRoutePredicateFactory
      *
-     * todo 还剩下属性绑定的 没看
+     * */
+    /**
+     * {@link RouteDefinitionRouteLocator#getRoutes()}
+     * {@link RouteDefinitionRouteLocator#convertToRoute(RouteDefinition)}
      * */
 
 }
