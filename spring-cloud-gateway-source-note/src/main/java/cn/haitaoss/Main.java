@@ -22,6 +22,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
@@ -29,6 +30,7 @@ import reactor.core.publisher.Mono;
 import reactor.netty.http.server.HttpServerRequest;
 
 import java.util.ArrayList;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * @author haitao.chen
@@ -469,11 +471,16 @@ public class Main {
     private ObjectProvider<HttpServerRequest> request;
 
     @RequestMapping("/index")
-    public Object index() {
-        return "ok....";
+    public Object index(@RequestParam(value = "id",required = false) String id) {
+        return "ok...." + id;
     }
 
     public static void main(String[] args) {
+        ThreadLocalRandom current = ThreadLocalRandom.current();
+        System.out.println(current.nextDouble());
+        System.out.println(current.nextDouble());
+        System.out.println(current.nextDouble());
+        System.out.println(current.nextDouble());
         ConfigurableApplicationContext context = SpringApplication.run(Main.class, args);
 
         Flux<String> stringFlux = Flux.just("a", "b");
@@ -549,5 +556,13 @@ public class Main {
      *
      *
      * RouteDefinitionLocator（PropertiesRouteDefinitionLocator） -> RouteDefinitionRouteLocator -> ConfigurationService、RoutePredicateFactory、GatewayFilterFactory
+     *
+     *
+     * 重点将一下 WeightRoutePredicateFactory、WeightCalculatorWebFilter 的实现逻辑
+     *
+     * 整理类图：AbstractRoutePredicateFactory
+     *
+     * todo 还剩下属性绑定的 没看
      * */
+
 }

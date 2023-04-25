@@ -40,9 +40,13 @@ public interface RoutePredicateFactory<C> extends ShortcutConfigurable, Configur
 
 	// useful for javadsl
 	default Predicate<ServerWebExchange> apply(Consumer<C> consumer) {
+		// 拿到 Config
 		C config = newConfig();
+		// 使用 consumer 对 Config 进行配置
 		consumer.accept(config);
+		// 应用的前置操作。通常可以在这个方法做统一的配置
 		beforeApply(config);
+		// 应用。就是根据 config 生成 Predicate
 		return apply(config);
 	}
 

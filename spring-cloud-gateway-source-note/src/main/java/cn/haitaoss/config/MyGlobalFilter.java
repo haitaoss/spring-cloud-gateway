@@ -1,12 +1,23 @@
 package cn.haitaoss.config;
 
+import org.springframework.cloud.gateway.filter.GatewayFilter;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.cloud.gateway.filter.OrderedGatewayFilter;
+import org.springframework.cloud.gateway.filter.factory.AbstractNameValueGatewayFilterFactory;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
+import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author haitao.chen
@@ -16,6 +27,24 @@ import reactor.core.publisher.Mono;
  */
 @Component
 public class MyGlobalFilter {
+    @Component
+    public static class RouteIdGlobalFilter implements GlobalFilter, Ordered {
+        @Override
+        public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+            Map<String, String> map = new HashMap<>(1);
+            map.put("routeId", exchange.getAttributeOrDefault(
+                    ServerWebExchangeUtils.GATEWAY_PREDICATE_MATCHED_PATH_ROUTE_ID_ATTR,
+                    "empty"));
+            ServerWebExchangeUtils.putUriTemplateVariables(exchange, map);
+            return chain.filter(exchange).then();
+        }
+
+        @Override
+        public int getOrder() {
+            return Integer.MIN_VALUE;
+        }
+    }
+
     @Bean
     public RouteLocator routes(RouteLocatorBuilder builder) {
         return builder.routes()
@@ -33,19 +62,6 @@ public class MyGlobalFilter {
                 ).build();
     }
 
-    @Bean
-    public GlobalFilter customGlobalFilter() {
-        return (exchange, chain) -> exchange.getPrincipal()
-                // .map(Principal::getName)
-                .map(i -> "")
-                .defaultIfEmpty("Default User")
-                .map(userName -> {
-                    //adds header to proxied request
-                    exchange.getRequest().mutate().header("CUSTOM-REQUEST-HEADER", userName).build();
-                    return exchange;
-                })
-                .flatMap(chain::filter);
-    }
 
     @Bean
     public GlobalFilter customGlobalPostFilter() {
@@ -60,5 +76,28 @@ public class MyGlobalFilter {
                 .then();
     }
 
+    // @Bean
+    public AbstractNameValueGatewayFilterFactory RouteIdGatewayFilterFactory() {
+        return new AbstractNameValueGatewayFilterFactory() {
+            @Override
+            public String name() {
+                return "RouteId";
+            }
 
+            @Override
+            public GatewayFilter apply(NameValueConfig config) {
+                return new GatewayFilter() {
+                    @Override
+                    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+                        Map<String, String> map = new HashMap<>(1);
+                        map.put("routeId", exchange.getAttributeOrDefault(
+                                ServerWebExchangeUtils.GATEWAY_PREDICATE_MATCHED_PATH_ROUTE_ID_ATTR,
+                                "empty"));
+                        ServerWebExchangeUtils.putUriTemplateVariables(exchange, map);
+                        return chain.filter(exchange);
+                    }
+                };
+            }
+        };
+    }
 }

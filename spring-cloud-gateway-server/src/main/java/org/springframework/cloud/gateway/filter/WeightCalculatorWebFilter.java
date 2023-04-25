@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.springframework.cloud.gateway.handler.predicate.WeightRoutePredicateFactory;
 import reactor.core.publisher.Mono;
 
 import org.springframework.beans.factory.ObjectProvider;
@@ -122,7 +123,12 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 		if (event instanceof PredicateArgsEvent) {
 			handle((PredicateArgsEvent) event);
 		}
+		/**
+		 * WeightRoutePredicateFactory 生成 Predicate 时会发布 WeightDefinedEvent 事件
+		 * 		{@link WeightRoutePredicateFactory#beforeApply(WeightConfig)}
+		 * */
 		else if (event instanceof WeightDefinedEvent) {
+			// 将配置的 route 分组、权重 信息 简单的处理，然后存起来
 			addWeightConfig(((WeightDefinedEvent) event).getWeightConfig());
 		}
 		else if (event instanceof RefreshRoutesEvent && routeLocator != null) {
@@ -162,20 +168,27 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 	/* for testing */ void addWeightConfig(WeightConfig weightConfig) {
 		String group = weightConfig.getGroup();
 		GroupWeightConfig config;
+
+		/**
+		 * groupWeights 已经记录了当前分组的信息，说明不同的 route 使用了同一个分组
+		 * */
 		// only create new GroupWeightConfig rather than modify
 		// and put at end of calculations. This avoids concurency problems
 		// later during filter execution.
 		if (groupWeights.containsKey(group)) {
+			// 拷贝
 			config = new GroupWeightConfig(groupWeights.get(group));
 		}
 		else {
 			config = new GroupWeightConfig(group);
 		}
 
+		// 将 route 的权重值，记录到 config.weights 中
 		config.weights.put(weightConfig.getRouteId(), weightConfig.getWeight());
 
 		// recalculate
 
+		// 总权重
 		// normalize weights
 		int weightsSum = 0;
 
@@ -187,9 +200,13 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 		for (Map.Entry<String, Integer> entry : config.weights.entrySet()) {
 			String routeId = entry.getKey();
 			Integer weight = entry.getValue();
+			// 占总权重的比例
 			Double nomalizedWeight = weight / (double) weightsSum;
+
+			// 将权重比例 记录起来
 			config.normalizedWeights.put(routeId, nomalizedWeight);
 
+			// 范围索引
 			// recalculate rangeIndexes
 			config.rangeIndexes.put(index.getAndIncrement(), routeId);
 		}
@@ -204,12 +221,23 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 			Double currentWeight = values.get(i);
 			Double previousRange = config.ranges.get(i);
 			Double range = previousRange + currentWeight;
+			/**
+			 * 记录每个权重的递增值。
+			 *
+			 * 比如 normalizedWeights 中有两个权重：80,20
+			 * 那么 ranges 记录的是 [0.0 , 80 , 100]
+			 * 此时随机数 65 想知道使用那个 routeId，那就使用左闭右开原则判断 65 在 ranges 的那个索引范围，
+			 * 在通过索引值从 rangeIndexes 获取得到 routeId
+			 *
+			 * 代码在这里 {@link WeightCalculatorWebFilter#filter(ServerWebExchange, WebFilterChain)}
+			 * */
 			config.ranges.add(range);
 		}
 
 		if (log.isTraceEnabled()) {
 			log.trace("Recalculated group weight config " + config);
 		}
+		// 更新
 		// only update after all calculations
 		groupWeights.put(group, config);
 	}
@@ -220,8 +248,13 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 
 	@Override
 	public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+		// 从 exchange 中获取，获取不到就初始化一个Map并设置到 exchange 中
 		Map<String, String> weights = getWeights(exchange);
 
+		/**
+		 * 遍历配置的 分组权重，随机生成一个权重值，该权重匹配了 routeID 配置的权重
+		 * 就记录起来 weights.put(group,routeId)
+		 * */
 		for (String group : groupWeights.keySet()) {
 			GroupWeightConfig config = groupWeights.get(group);
 
@@ -232,6 +265,9 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 				continue; // nothing we can do, but this is odd
 			}
 
+			/**
+			 * 生成随机数，作为权重。随机数的值不会大于1，所以肯定会有命中的 routeID
+			 * */
 			/*
 			 * Usually, multiple threads accessing the same random object will have some
 			 * performance problems, so we can use ThreadLocalRandom by default
@@ -240,6 +276,10 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 			useRandom = useRandom == null ? ThreadLocalRandom.current() : useRandom;
 			double r = useRandom.nextDouble();
 
+			/**
+			 * 这是通过
+			 * {@link WeightCalculatorWebFilter#addWeightConfig(WeightConfig)}
+			 * */
 			List<Double> ranges = config.ranges;
 
 			if (log.isTraceEnabled()) {
@@ -247,8 +287,10 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 			}
 
 			for (int i = 0; i < ranges.size() - 1; i++) {
+				// 左闭右开原则，在区间内就使用 索引从 rangeIndexes 得到 routeId
 				if (r >= ranges.get(i) && r < ranges.get(i + 1)) {
 					String routeId = config.rangeIndexes.get(i);
+					// 记录到weights，其实也就是存到 exchange 中
 					weights.put(group, routeId);
 					break;
 				}
@@ -259,6 +301,7 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 			log.trace("Weights attr: " + weights);
 		}
 
+		// 放行
 		return chain.filter(exchange);
 	}
 
@@ -266,12 +309,25 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 
 		String group;
 
+		/**
+		 * < RouteID, 权重 >
+		 */
 		LinkedHashMap<String, Integer> weights = new LinkedHashMap<>();
 
+		/**
+		 * < RouteID, 占总权重的比例值 >
+		 */
 		LinkedHashMap<String, Double> normalizedWeights = new LinkedHashMap<>();
 
+		/**
+		 * < 索引 , RouteID >
+		 */
 		LinkedHashMap<Integer, String> rangeIndexes = new LinkedHashMap<>();
 
+		/**
+		 * 权重的叠加列表。[0.0 , 2 , 3 , 5 ]
+		 * 比如权重值为 1，那么它是在区间 [0.0,2) 中，所以他的索引是 0 , 就能从 rangeIndexes 中获取索引 0 对应的 routeID
+		 */
 		List<Double> ranges = new ArrayList<>();
 
 		GroupWeightConfig(String group) {

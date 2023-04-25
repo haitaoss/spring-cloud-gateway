@@ -20,16 +20,20 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import org.springframework.cloud.gateway.event.WeightDefinedEvent;
+import org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter;
 import org.springframework.cloud.gateway.support.WeightConfig;
+import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.ApplicationEventPublisherAware;
 import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebFilterChain;
 
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_PREDICATE_ROUTE_ATTR;
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.WEIGHT_ATTR;
@@ -76,31 +80,50 @@ public class WeightRoutePredicateFactory extends AbstractRoutePredicateFactory<W
 
 	@Override
 	public void beforeApply(WeightConfig config) {
+		/**
+		 * beforeApply 是模板方法， {@link RoutePredicateFactory#apply(Consumer)} 会执行
+		 * */
 		if (publisher != null) {
+			/**
+			 * 发布事件。
+			 *
+			 * {@link WeightCalculatorWebFilter#onApplicationEvent(ApplicationEvent)}
+			 * */
 			publisher.publishEvent(new WeightDefinedEvent(this, config));
 		}
 	}
 
 	@Override
 	public Predicate<ServerWebExchange> apply(WeightConfig config) {
+		// 返回 GatewayPredicate 实例
 		return new GatewayPredicate() {
 			@Override
 			public boolean test(ServerWebExchange exchange) {
+				/**
+				 * 获取属性，获取不到就设置默认值。这个属性记录的是 <group,routeId> 也就是每个分组根据权重计算得到的 routeId
+				 *
+				 * 每个请求都会重新计算，在这里设置的
+				 * 		{@link WeightCalculatorWebFilter#filter(ServerWebExchange, WebFilterChain)}
+				 * */
 				Map<String, String> weights = exchange.getAttributeOrDefault(WEIGHT_ATTR, Collections.emptyMap());
 
+				// 拿到 routeId
 				String routeId = exchange.getAttribute(GATEWAY_PREDICATE_ROUTE_ATTR);
 
+				// 拿到 组名
 				// all calculations and comparison against random num happened in
 				// WeightCalculatorWebFilter
 				String group = config.getGroup();
+				// 包含
 				if (weights.containsKey(group)) {
-
+					// 获取
 					String chosenRoute = weights.get(group);
 					if (log.isTraceEnabled()) {
 						log.trace("in group weight: " + group + ", current route: " + routeId + ", chosen route: "
 								+ chosenRoute);
 					}
 
+					// 一样才放行。从而体现 路由是根据权重来的
 					return routeId.equals(chosenRoute);
 				}
 				else if (log.isTraceEnabled()) {

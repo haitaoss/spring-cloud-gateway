@@ -1,10 +1,26 @@
 spring:
   cloud:
     gateway:
+      default-filters:
+        - RewritePath=/index/?(?<segment>.*), /$\{segment}
+        - RewritePath=/weight/?(?<segment>.*), /index
       routes:
         - id: id1
           uri: http://localhost:8080
           predicates:
             - Path=/index/**
+
+        - id: weight_high
+          uri: http://localhost:8080
+          predicates:
+            - Path=/weight/**
+            - Weight=group1, 8
           filters:
-            - RewritePath=/index/?(?<segment>.*), /$\{segment}
+            - AddRequestParameter=id, {routeId}
+        - id: weight_low
+          uri: http://localhost:8080
+          predicates:
+            - Path=/weight/**
+            - Weight=group1, 2
+          filters:
+            - AddRequestParameter=id, {routeId}
