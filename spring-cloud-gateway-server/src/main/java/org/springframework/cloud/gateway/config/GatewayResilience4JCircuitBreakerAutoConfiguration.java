@@ -44,7 +44,9 @@ public class GatewayResilience4JCircuitBreakerAutoConfiguration {
 
 	/**
 	 * SpringCloudCircuitBreakerResilience4JFilterFactory 实现 GatewayFilterFactory 接口，
-	 * 其核心逻辑是使用 ReactiveCircuitBreaker 来执行业务逻辑。
+	 * 其核心逻辑是使用 ReactiveCircuitBreaker 来执行业务逻辑，当 出现异常 或者 路由请求返回的状态码是期望值 就
+	 * 使用 dispatcherHandler 来执行 fallbackUrl，并且会往 ServerWebExchange 设置一个key记录异常对象。
+	 *
 	 * @param reactiveCircuitBreakerFactory
 	 * @param dispatcherHandler
 	 * @return
@@ -60,7 +62,7 @@ public class GatewayResilience4JCircuitBreakerAutoConfiguration {
 
 	/**
 	 * FallbackHeadersGatewayFilterFactory 实现 GatewayFilterFactory 接口，
-	 * 如果请求是 fallback 执行的，那就设置一些请求头
+	 * 其核心逻辑：如果请求是 fallbackUrl 执行的（通过异常key判断），那就设置一些请求头
 	 * @return
 	 */
 	@Bean

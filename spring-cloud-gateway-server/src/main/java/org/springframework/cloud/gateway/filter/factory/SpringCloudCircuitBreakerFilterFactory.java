@@ -16,14 +16,6 @@
 
 package org.springframework.cloud.gateway.filter.factory;
 
-import java.net.URI;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import reactor.core.publisher.Mono;
-
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreaker;
 import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreakerFactory;
@@ -38,14 +30,18 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.reactive.DispatcherHandler;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Mono;
+
+import java.net.URI;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static java.util.Optional.ofNullable;
 import static org.springframework.cloud.gateway.support.GatewayToStringStyler.filterToStringCreator;
-import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.CIRCUITBREAKER_EXECUTION_EXCEPTION_ATTR;
-import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_REQUEST_URL_ATTR;
-import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.containsEncodedParts;
-import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.reset;
+import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.*;
 
 /**
  * @author Ryan Baxter
@@ -104,8 +100,7 @@ public abstract class SpringCloudCircuitBreakerFilterFactory
 						HttpStatus status = exchange.getResponse().getStatusCode();
 						throw new CircuitBreakerStatusCodeException(status);
 					}
-				}), t -> {
-					// 这是 fallback 逻辑
+				}), t -> {// 这是 fallback 逻辑
 
 					// 没有配置 fallbackUri 就直接抛出异常
 					if (config.getFallbackUri() == null) {

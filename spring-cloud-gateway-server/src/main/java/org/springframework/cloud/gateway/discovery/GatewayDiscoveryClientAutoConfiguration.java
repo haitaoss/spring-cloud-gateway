@@ -16,9 +16,6 @@
 
 package org.springframework.cloud.gateway.discovery;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -34,6 +31,9 @@ import org.springframework.cloud.gateway.handler.predicate.PredicateDefinition;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.DispatcherHandler;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.springframework.cloud.gateway.filter.factory.RewritePathGatewayFilterFactory.REGEXP_KEY;
 import static org.springframework.cloud.gateway.filter.factory.RewritePathGatewayFilterFactory.REPLACEMENT_KEY;
@@ -52,6 +52,10 @@ import static org.springframework.cloud.gateway.support.NameUtils.normalizeRoute
 @EnableConfigurationProperties
 public class GatewayDiscoveryClientAutoConfiguration {
 
+	/**
+	 * 这是一个 PathRoutePredicateFactory，根据 serviceId 进行路由
+	 * @return
+	 */
 	public static List<PredicateDefinition> initPredicates() {
 		ArrayList<PredicateDefinition> definitions = new ArrayList<>();
 		// TODO: add a predicate that matches the url at /serviceId?
@@ -64,6 +68,10 @@ public class GatewayDiscoveryClientAutoConfiguration {
 		return definitions;
 	}
 
+	/**
+	 * 这是一个 RewritePathGatewayFilterFactory，移除 serviceId 路径前缀
+	 * @return
+	 */
 	public static List<FilterDefinition> initFilters() {
 		ArrayList<FilterDefinition> definitions = new ArrayList<>();
 
@@ -79,10 +87,18 @@ public class GatewayDiscoveryClientAutoConfiguration {
 		return definitions;
 	}
 
+	/**
+	 * DiscoveryLocatorProperties 类上标注了 @ConfigurationProperties("spring.cloud.gateway.discovery.locator")
+	 * 也就是可以通过配置属性的方式设置属性值，下面的逻辑是设置默认值的意思。
+	 * DiscoveryClientRouteDefinitionLocator 会使用这两个属性会作为生成 RouteDefinition 的 Predicate 和 Filter
+	 * @return
+	 */
 	@Bean
 	public DiscoveryLocatorProperties discoveryLocatorProperties() {
 		DiscoveryLocatorProperties properties = new DiscoveryLocatorProperties();
+		// 默认就设置 PathRoutePredicateFactory
 		properties.setPredicates(initPredicates());
+		// 默认就设置 RewritePathGatewayFilterFactory
 		properties.setFilters(initFilters());
 		return properties;
 	}
@@ -91,6 +107,16 @@ public class GatewayDiscoveryClientAutoConfiguration {
 	@ConditionalOnProperty(value = "spring.cloud.discovery.reactive.enabled", matchIfMissing = true)
 	public static class ReactiveDiscoveryClientRouteDefinitionLocatorConfiguration {
 
+		/**
+		 * DiscoveryClientRouteDefinitionLocator 实现 RouteDefinitionLocator。
+		 * 会根据 ReactiveDiscoveryClient.getServices() 返回的 Flux<ServiceInstance> 生成 Flux<RouteDefinition>
+		 * 每个 RouteDefinition 是由 ServiceInstance + DiscoveryLocatorProperties 的内容 配置 路由Uri、Predicate、Filter
+		 * 大部分属性值是通过解析 SPEL 表达式得到的，其中根对象是 ServiceInstance，所以说 编写的 SPEL 表达式可以引用 ServiceInstance 中的属性
+		 *
+		 * @param discoveryClient
+		 * @param properties
+		 * @return
+		 */
 		@Bean
 		@ConditionalOnProperty(name = "spring.cloud.gateway.discovery.locator.enabled")
 		public DiscoveryClientRouteDefinitionLocator discoveryClientRouteDefinitionLocator(

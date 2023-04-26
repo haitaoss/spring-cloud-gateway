@@ -16,13 +16,13 @@
 
 package org.springframework.cloud.gateway.config;
 
-import javax.annotation.PostConstruct;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.handler.SimpleUrlHandlerMapping;
+
+import javax.annotation.PostConstruct;
 
 /**
  * This is useful for PreFlight CORS requests. We can add a "global" configuration here so
@@ -40,6 +40,11 @@ public class SimpleUrlHandlerMappingGlobalCorsAutoConfiguration {
 	@Autowired
 	private SimpleUrlHandlerMapping simpleUrlHandlerMapping;
 
+	/**
+	 * 为 SimpleUrlHandlerMapping 配置 跨域配置信息
+	 *
+	 * SimpleUrlHandlerMapping 是
+	 */
 	@PostConstruct
 	void config() {
 		simpleUrlHandlerMapping.setCorsConfigurations(globalCorsProperties.getCorsConfigurations());

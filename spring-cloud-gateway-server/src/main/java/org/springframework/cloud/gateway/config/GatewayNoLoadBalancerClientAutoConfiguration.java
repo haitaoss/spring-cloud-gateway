@@ -16,10 +16,6 @@
 
 package org.springframework.cloud.gateway.config;
 
-import java.net.URI;
-
-import reactor.core.publisher.Mono;
-
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
@@ -33,6 +29,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
+
+import java.net.URI;
 
 import static org.springframework.cloud.gateway.filter.ReactiveLoadBalancerClientFilter.LOAD_BALANCER_CLIENT_FILTER_ORDER;
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_REQUEST_URL_ATTR;
@@ -48,6 +47,14 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.G
 @AutoConfigureAfter(GatewayReactiveLoadBalancerClientAutoConfiguration.class)
 public class GatewayNoLoadBalancerClientAutoConfiguration {
 
+	/**
+	 * NoLoadBalancerClientFilter 实现 GlobalFilter 接口，也就是每个 Route 的请求都会执行。
+	 * 功能：路由的Url 有 lb 前缀 就直接抛出异常，也就是说不支持 负载均衡的路由
+	 *
+	 * BeanFactory 中没有 ReactiveLoadBalancerClientFilter 才会生效。
+	 * @param properties
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnMissingBean(ReactiveLoadBalancerClientFilter.class)
 	public NoLoadBalancerClientFilter noLoadBalancerClientFilter(GatewayLoadBalancerProperties properties) {
@@ -72,10 +79,11 @@ public class GatewayNoLoadBalancerClientAutoConfiguration {
 		public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
 			URI url = exchange.getAttribute(GATEWAY_REQUEST_URL_ATTR);
 			String schemePrefix = exchange.getAttribute(GATEWAY_SCHEME_PREFIX_ATTR);
+			// url 没有 lb 前缀 就放行
 			if (url == null || (!"lb".equals(url.getScheme()) && !"lb".equals(schemePrefix))) {
 				return chain.filter(exchange);
 			}
-
+			// 不能处理 lb:// 所以 直接报错
 			throw NotFoundException.create(use404, "Unable to find instance for " + url.getHost());
 		}
 

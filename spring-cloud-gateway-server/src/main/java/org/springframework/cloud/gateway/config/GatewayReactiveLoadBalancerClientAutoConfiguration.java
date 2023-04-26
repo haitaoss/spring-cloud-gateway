@@ -43,6 +43,13 @@ import org.springframework.web.reactive.DispatcherHandler;
 @EnableConfigurationProperties(GatewayLoadBalancerProperties.class)
 public class GatewayReactiveLoadBalancerClientAutoConfiguration {
 
+	/**
+	 * ReactiveLoadBalancerClientFilter 实现 GlobalFilter 接口。
+	 * 作用：url 没有 lb 协议 就放行，有 lb 就使用 LoadBalancerClientFactory 得到负载均衡后的 uri，修改 ServerWebExchange 放行filter
+	 * @param clientFactory
+	 * @param properties
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnBean(LoadBalancerClientFactory.class)
 	@ConditionalOnMissingBean(ReactiveLoadBalancerClientFilter.class)
@@ -52,6 +59,12 @@ public class GatewayReactiveLoadBalancerClientAutoConfiguration {
 		return new ReactiveLoadBalancerClientFilter(clientFactory, properties);
 	}
 
+	/**
+	 * LoadBalancerServiceInstanceCookieFilter 实现 GlobalFilter 接口
+	 * 作用：是负载均衡的路由，就添加一个Cookie键值对
+	 * @param loadBalancerClientFactory
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnBean({ ReactiveLoadBalancerClientFilter.class, LoadBalancerClientFactory.class })
 	@ConditionalOnMissingBean

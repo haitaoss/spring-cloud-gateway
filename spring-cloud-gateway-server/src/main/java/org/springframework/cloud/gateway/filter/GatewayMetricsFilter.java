@@ -16,20 +16,19 @@
 
 package org.springframework.cloud.gateway.filter;
 
-import java.util.List;
-
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.Timer.Sample;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import reactor.core.publisher.Mono;
-
 import org.springframework.cloud.gateway.support.tagsprovider.GatewayTagsProvider;
 import org.springframework.core.Ordered;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 /**
  * @author Tony Clarke
@@ -70,6 +69,7 @@ public class GatewayMetricsFilter implements GlobalFilter, Ordered {
 
 	@Override
 	public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+		// meterRegistry 是记录统计信息的。
 		Sample sample = Timer.start(meterRegistry);
 
 		return chain.filter(exchange).doOnSuccess(aVoid -> endTimerRespectingCommit(exchange, sample))
@@ -80,6 +80,7 @@ public class GatewayMetricsFilter implements GlobalFilter, Ordered {
 
 		ServerHttpResponse response = exchange.getResponse();
 		if (response.isCommitted()) {
+			// 响应提交了，就执行
 			endTimerInner(exchange, sample);
 		}
 		else {
@@ -91,11 +92,13 @@ public class GatewayMetricsFilter implements GlobalFilter, Ordered {
 	}
 
 	private void endTimerInner(ServerWebExchange exchange, Sample sample) {
+		// 得到 Tags
 		Tags tags = compositeTagsProvider.apply(exchange);
 
 		if (log.isTraceEnabled()) {
 			log.trace(metricsPrefix + ".requests tags: " + tags);
 		}
+		// 信息记录到 sample
 		sample.stop(meterRegistry.timer(metricsPrefix + ".requests", tags));
 	}
 

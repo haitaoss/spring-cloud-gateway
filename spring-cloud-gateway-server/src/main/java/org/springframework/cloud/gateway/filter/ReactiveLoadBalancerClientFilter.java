@@ -16,26 +16,10 @@
 
 package org.springframework.cloud.gateway.filter;
 
-import java.net.URI;
-import java.util.Map;
-import java.util.Set;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import reactor.core.publisher.Mono;
-
 import org.springframework.cloud.client.ServiceInstance;
-import org.springframework.cloud.client.loadbalancer.CompletionContext;
-import org.springframework.cloud.client.loadbalancer.DefaultRequest;
-import org.springframework.cloud.client.loadbalancer.LoadBalancerLifecycle;
-import org.springframework.cloud.client.loadbalancer.LoadBalancerLifecycleValidator;
-import org.springframework.cloud.client.loadbalancer.LoadBalancerProperties;
-import org.springframework.cloud.client.loadbalancer.LoadBalancerUriTools;
-import org.springframework.cloud.client.loadbalancer.Request;
-import org.springframework.cloud.client.loadbalancer.RequestData;
-import org.springframework.cloud.client.loadbalancer.RequestDataContext;
-import org.springframework.cloud.client.loadbalancer.Response;
-import org.springframework.cloud.client.loadbalancer.ResponseData;
+import org.springframework.cloud.client.loadbalancer.*;
 import org.springframework.cloud.gateway.config.GatewayLoadBalancerProperties;
 import org.springframework.cloud.gateway.support.DelegatingServiceInstance;
 import org.springframework.cloud.gateway.support.NotFoundException;
@@ -44,11 +28,13 @@ import org.springframework.cloud.loadbalancer.core.ReactorServiceInstanceLoadBal
 import org.springframework.cloud.loadbalancer.support.LoadBalancerClientFactory;
 import org.springframework.core.Ordered;
 import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
 
-import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_LOADBALANCER_RESPONSE_ATTR;
-import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_REQUEST_URL_ATTR;
-import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_SCHEME_PREFIX_ATTR;
-import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.addOriginalRequestUrl;
+import java.net.URI;
+import java.util.Map;
+import java.util.Set;
+
+import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.*;
 
 /**
  * A {@link GlobalFilter} implementation that routes requests using reactive Spring Cloud
@@ -98,9 +84,12 @@ public class ReactiveLoadBalancerClientFilter implements GlobalFilter, Ordered {
 	public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
 		URI url = exchange.getAttribute(GATEWAY_REQUEST_URL_ATTR);
 		String schemePrefix = exchange.getAttribute(GATEWAY_SCHEME_PREFIX_ATTR);
+		//  url 没有 lb 协议 就放行
 		if (url == null || (!"lb".equals(url.getScheme()) && !"lb".equals(schemePrefix))) {
 			return chain.filter(exchange);
 		}
+
+		// exchange 中记录下 url
 		// preserve the original url
 		addOriginalRequestUrl(exchange, url);
 
@@ -110,12 +99,18 @@ public class ReactiveLoadBalancerClientFilter implements GlobalFilter, Ordered {
 
 		URI requestUri = exchange.getAttribute(GATEWAY_REQUEST_URL_ATTR);
 		String serviceId = requestUri.getHost();
+
 		Set<LoadBalancerLifecycle> supportedLifecycleProcessors = LoadBalancerLifecycleValidator
 				.getSupportedLifecycleProcessors(clientFactory.getInstances(serviceId, LoadBalancerLifecycle.class),
 						RequestDataContext.class, ResponseData.class, ServiceInstance.class);
+
+		// 构造出 lbRequest
 		DefaultRequest<RequestDataContext> lbRequest = new DefaultRequest<>(
 				new RequestDataContext(new RequestData(exchange.getRequest()), getHint(serviceId)));
+
 		LoadBalancerProperties loadBalancerProperties = clientFactory.getProperties(serviceId);
+
+		// 执行负载均衡策略 得到 路由地址。
 		return choose(lbRequest, serviceId, supportedLifecycleProcessors).doOnNext(response -> {
 
 			if (!response.hasServer()) {
@@ -146,7 +141,7 @@ public class ReactiveLoadBalancerClientFilter implements GlobalFilter, Ordered {
 			exchange.getAttributes().put(GATEWAY_REQUEST_URL_ATTR, requestUrl);
 			exchange.getAttributes().put(GATEWAY_LOADBALANCER_RESPONSE_ATTR, response);
 			supportedLifecycleProcessors.forEach(lifecycle -> lifecycle.onStartRequest(lbRequest, response));
-		}).then(chain.filter(exchange))
+		}).then(chain.filter(exchange)) // 放行请求
 				.doOnError(throwable -> supportedLifecycleProcessors.forEach(lifecycle -> lifecycle
 						.onComplete(new CompletionContext<ResponseData, ServiceInstance, RequestDataContext>(
 								CompletionContext.Status.FAILED, throwable, lbRequest,

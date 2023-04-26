@@ -16,8 +16,6 @@
 
 package org.springframework.cloud.gateway.config;
 
-import java.util.List;
-
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
@@ -45,6 +43,8 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.scripting.support.ResourceScriptSource;
 import org.springframework.web.reactive.DispatcherHandler;
 
+import java.util.List;
+
 @Configuration(proxyBeanMethods = false)
 @AutoConfigureAfter(RedisReactiveAutoConfiguration.class)
 @AutoConfigureBefore(GatewayAutoConfiguration.class)
@@ -71,6 +71,12 @@ class GatewayRedisAutoConfiguration {
 		return new RedisRateLimiter(redisTemplate, redisScript, configurationService);
 	}
 
+	/**
+	 * RedisRouteDefinitionRepository 实现 RouteDefinitionRepository 接口。
+	 * 使用 redis 作为缓存层，存储 RouteDefinition
+	 * @param reactiveRedisTemplate
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnProperty(value = "spring.cloud.gateway.redis-route-definition-repository.enabled",
 			havingValue = "true")

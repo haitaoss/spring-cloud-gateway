@@ -16,16 +16,8 @@
 
 package org.springframework.cloud.gateway.discovery;
 
-import java.net.URI;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Predicate;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import reactor.core.publisher.Flux;
-
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.ReactiveDiscoveryClient;
 import org.springframework.cloud.gateway.filter.FilterDefinition;
@@ -39,6 +31,13 @@ import org.springframework.expression.ParseException;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.SimpleEvaluationContext;
 import org.springframework.util.StringUtils;
+import reactor.core.publisher.Flux;
+
+import java.net.URI;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * TODO: change to RouteLocator? use java dsl
@@ -66,10 +65,12 @@ public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLoc
 
 	private DiscoveryClientRouteDefinitionLocator(String discoveryClientName, DiscoveryLocatorProperties properties) {
 		this.properties = properties;
+		// 配置了前缀 就使用
 		if (StringUtils.hasText(properties.getRouteIdPrefix())) {
 			routeIdPrefix = properties.getRouteIdPrefix();
 		}
 		else {
+			//没配置就使用类名做前缀
 			routeIdPrefix = discoveryClientName + "_";
 		}
 		evalCtxt = SimpleEvaluationContext.forReadOnlyDataBinding().withInstanceMethods().build();
@@ -79,15 +80,19 @@ public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLoc
 	public Flux<RouteDefinition> getRouteDefinitions() {
 
 		SpelExpressionParser parser = new SpelExpressionParser();
+		// include 表达式
 		Expression includeExpr = parser.parseExpression(properties.getIncludeExpression());
+		// url 表达式
 		Expression urlExpr = parser.parseExpression(properties.getUrlExpression());
 
 		Predicate<ServiceInstance> includePredicate;
+		// 没配置 include ，那么 includePredicate 直接是true
 		if (properties.getIncludeExpression() == null || "true".equalsIgnoreCase(properties.getIncludeExpression())) {
 			includePredicate = instance -> true;
 		}
 		else {
 			includePredicate = instance -> {
+				// 进行 spel 的解析。根对象是 ServiceInstance
 				Boolean include = includeExpr.getValue(evalCtxt, instance, Boolean.class);
 				if (include == null) {
 					return false;
@@ -96,24 +101,34 @@ public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLoc
 			};
 		}
 
+		// 遍历 DiscoveryClient 拿到的 instance
 		return serviceInstances.filter(instances -> !instances.isEmpty()).flatMap(Flux::fromIterable)
-				.filter(includePredicate).collectMap(ServiceInstance::getServiceId)
+				// 使用配置的 includeExpr 过滤
+				.filter(includePredicate)
+				// 过滤出 serviceId 不是空的
+				.collectMap(ServiceInstance::getServiceId)
 				// remove duplicates
-				.flatMapMany(map -> Flux.fromIterable(map.values())).map(instance -> {
+				.flatMapMany(map -> Flux.fromIterable(map.values()))
+				// 映射成 RouteDefinition
+				.map(instance -> {
+					// 会使用 urlExpr 进行 spel 的解析 得到路由的 uri
 					RouteDefinition routeDefinition = buildRouteDefinition(urlExpr, instance);
 
 					final ServiceInstance instanceForEval = new DelegatingServiceInstance(instance, properties);
 
+					// 根据 properties.getPredicates() 生成 RouteDefinition 的 Predicate
 					for (PredicateDefinition original : this.properties.getPredicates()) {
 						PredicateDefinition predicate = new PredicateDefinition();
 						predicate.setName(original.getName());
 						for (Map.Entry<String, String> entry : original.getArgs().entrySet()) {
+							// 进行 spel 的解析，根对象是 ServiceInstance
 							String value = getValueFromExpr(evalCtxt, parser, instanceForEval, entry);
 							predicate.addArg(entry.getKey(), value);
 						}
 						routeDefinition.getPredicates().add(predicate);
 					}
 
+					// 根据 properties.getFilters() 生成 RouteDefinition 的 Filter
 					for (FilterDefinition original : this.properties.getFilters()) {
 						FilterDefinition filter = new FilterDefinition();
 						filter.setName(original.getName());

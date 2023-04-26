@@ -45,6 +45,7 @@ public class SpringCloudCircuitBreakerResilience4JFilterFactory extends SpringCl
 		if (CallNotPermittedException.class.isInstance(t)) {
 			return Mono.error(new ServiceUnavailableException());
 		}
+		// 为true，就返回空，不要异常
 		if (resumeWithoutError) {
 			return Mono.empty();
 		}

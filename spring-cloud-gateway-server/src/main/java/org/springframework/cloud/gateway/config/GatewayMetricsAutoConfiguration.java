@@ -16,10 +16,7 @@
 
 package org.springframework.cloud.gateway.config;
 
-import java.util.List;
-
 import io.micrometer.core.instrument.MeterRegistry;
-
 import org.springframework.boot.actuate.autoconfigure.metrics.CompositeMeterRegistryAutoConfiguration;
 import org.springframework.boot.actuate.autoconfigure.metrics.MetricsAutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -32,14 +29,12 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.cloud.gateway.filter.GatewayMetricsFilter;
 import org.springframework.cloud.gateway.route.RouteDefinitionLocator;
 import org.springframework.cloud.gateway.route.RouteDefinitionMetrics;
-import org.springframework.cloud.gateway.support.tagsprovider.GatewayHttpTagsProvider;
-import org.springframework.cloud.gateway.support.tagsprovider.GatewayPathTagsProvider;
-import org.springframework.cloud.gateway.support.tagsprovider.GatewayRouteTagsProvider;
-import org.springframework.cloud.gateway.support.tagsprovider.GatewayTagsProvider;
-import org.springframework.cloud.gateway.support.tagsprovider.PropertiesTagsProvider;
+import org.springframework.cloud.gateway.support.tagsprovider.*;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.DispatcherHandler;
+
+import java.util.List;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = GatewayProperties.PREFIX + ".enabled", matchIfMissing = true)
@@ -49,27 +44,52 @@ import org.springframework.web.reactive.DispatcherHandler;
 @ConditionalOnClass({ DispatcherHandler.class, MeterRegistry.class, MetricsAutoConfiguration.class })
 public class GatewayMetricsAutoConfiguration {
 
+	/**
+	 * 会从 ServerWebExchange 中得到 请求的Method、响应的状态码等
+	 * @return
+	 */
 	@Bean
 	public GatewayHttpTagsProvider gatewayHttpTagsProvider() {
 		return new GatewayHttpTagsProvider();
 	}
 
+	/**
+	 * 会从 ServerWebExchange 中得到 匹配的路由地址
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnProperty(name = GatewayProperties.PREFIX + ".metrics.tags.path.enabled")
 	public GatewayPathTagsProvider gatewayPathTagsProvider() {
 		return new GatewayPathTagsProvider();
 	}
 
+	/**
+	 * 会从 ServerWebExchange 中得到 routId、route uri
+	 * @return
+	 */
 	@Bean
 	public GatewayRouteTagsProvider gatewayRouteTagsProvider() {
 		return new GatewayRouteTagsProvider();
 	}
 
+	/**
+	 * 将 GatewayMetricsProperties 的信息映射成 Tags
+	 * @param properties
+	 * @return
+	 */
 	@Bean
 	public PropertiesTagsProvider propertiesTagsProvider(GatewayMetricsProperties properties) {
 		return new PropertiesTagsProvider(properties.getTags());
 	}
 
+	/**
+	 * GatewayMetricsFilter 实现 GlobalFilter 接口，
+	 * 将 List<GatewayTagsProvider> 返回的信息记录到 MeterRegistry 中
+	 * @param meterRegistry
+	 * @param tagsProviders
+	 * @param properties
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnBean(MeterRegistry.class)
 	@ConditionalOnProperty(name = GatewayProperties.PREFIX + ".metrics.enabled", matchIfMissing = true)
@@ -80,6 +100,14 @@ public class GatewayMetricsAutoConfiguration {
 		return new GatewayMetricsFilter(meterRegistry, tagsProviders, properties.getPrefix());
 	}
 
+	/**
+	 * RouteDefinitionMetrics 实现 ApplicationListener<RefreshRoutesEvent> 接口，
+	 * 收到事件的逻辑是 RouteDefinitionLocator.getRouteDefinitions().count() 记录到 MeterRegistry 中
+	 * @param meterRegistry
+	 * @param routeDefinitionLocator
+	 * @param properties
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnBean(MeterRegistry.class)
 	@ConditionalOnProperty(name = GatewayProperties.PREFIX + ".metrics.enabled", matchIfMissing = true)

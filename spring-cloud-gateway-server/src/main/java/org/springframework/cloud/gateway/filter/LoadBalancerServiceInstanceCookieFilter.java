@@ -16,11 +16,6 @@
 
 package org.springframework.cloud.gateway.filter;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import reactor.core.publisher.Mono;
-
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerProperties;
 import org.springframework.cloud.client.loadbalancer.Response;
@@ -30,6 +25,10 @@ import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpHeaders;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.springframework.cloud.gateway.filter.ReactiveLoadBalancerClientFilter.LOAD_BALANCER_CLIENT_FILTER_ORDER;
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_LOADBALANCER_RESPONSE_ATTR;
@@ -64,6 +63,7 @@ public class LoadBalancerServiceInstanceCookieFilter implements GlobalFilter, Or
 
 	@Override
 	public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+		// ReactiveLoadBalancerClientFilter 会设置这个属性
 		Response<ServiceInstance> serviceInstanceResponse = exchange.getAttribute(GATEWAY_LOADBALANCER_RESPONSE_ATTR);
 		if (serviceInstanceResponse == null || !serviceInstanceResponse.hasServer()) {
 			return chain.filter(exchange);
@@ -71,18 +71,22 @@ public class LoadBalancerServiceInstanceCookieFilter implements GlobalFilter, Or
 		LoadBalancerProperties properties = loadBalancerClientFactory != null
 				? loadBalancerClientFactory.getProperties(serviceInstanceResponse.getServer().getServiceId())
 				: loadBalancerProperties;
+		// 没有配置这个属性，就放行
 		if (!properties.getStickySession().isAddServiceInstanceCookie()) {
 			return chain.filter(exchange);
 		}
 		String instanceIdCookieName = properties.getStickySession().getInstanceIdCookieName();
+		// 没有设置 cookieName 就放行
 		if (!StringUtils.hasText(instanceIdCookieName)) {
 			return chain.filter(exchange);
 		}
 		ServerWebExchange newExchange = exchange.mutate().request(exchange.getRequest().mutate().headers((headers) -> {
 			List<String> cookieHeaders = new ArrayList<>(headers.getOrEmpty(HttpHeaders.COOKIE));
+			// InstanceId 作为 值
 			String serviceInstanceCookie = new HttpCookie(instanceIdCookieName,
 					serviceInstanceResponse.getServer().getInstanceId()).toString();
 			cookieHeaders.add(serviceInstanceCookie);
+			// 添加一个 头
 			headers.put(HttpHeaders.COOKIE, cookieHeaders);
 		}).build()).build();
 		return chain.filter(newExchange);

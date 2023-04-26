@@ -1,0 +1,12 @@
+# 待验证
+spring:
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          # 这是一个 Spel 表达式
+          urlExpression: "'lb://'+serviceId"
+          predicates:
+            - PathRoute="'/'+serviceId+'/**'"
+          filters:
+            - RewritePath="'/' + serviceId + '/?(?<remaining>.*)'", "'/${remaining}'"

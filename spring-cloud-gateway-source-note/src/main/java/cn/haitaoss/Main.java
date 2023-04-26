@@ -66,7 +66,8 @@ public class Main {
      *      Spring Cloud CircuitBreaker GatewayFilter Factory
      *          要启用 Spring Cloud CircuitBreaker 过滤器，您需要将 spring-cloud-starter-circuitbreaker-reactor-resilience4j 放在类路径中。以下示例配置了一个 Spring Cloud CircuitBreaker GatewayFilter
      *
-     *          Spring Cloud CircuitBreaker 过滤器还可以接受可选的 fallbackUri 参数。目前，仅支持 forward: 计划的 URI。如果调用回退，请求将转发到与 URI 匹配的控制器。以下示例配置了这样的回退
+     *          Spring Cloud CircuitBreaker 过滤器还可以接受可选的 fallbackUri 参数。目前，仅支持 forward: 计划的 URI。
+     *          如果调用回退，请求将转发到与 URI 匹配的控制器。以下示例配置了这样的回退
      *
      *          信息。
      *
@@ -466,19 +467,16 @@ public class Main {
      * 自动装配
      * spring-cloud-gateway-server.jar!META-INF/spring.factories
      *  org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-     *      org.springframework.cloud.gateway.config.GatewayClassPathWarningAutoConfiguration,\
-     *      org.springframework.cloud.gateway.config.GatewayAutoConfiguration,\
-     *      org.springframework.cloud.gateway.config.GatewayResilience4JCircuitBreakerAutoConfiguration,\
-     *      org.springframework.cloud.gateway.config.GatewayNoLoadBalancerClientAutoConfiguration,\
-     *      org.springframework.cloud.gateway.config.GatewayMetricsAutoConfiguration,\
-     *      org.springframework.cloud.gateway.config.GatewayRedisAutoConfiguration,\
-     *      org.springframework.cloud.gateway.discovery.GatewayDiscoveryClientAutoConfiguration,\
-     *      org.springframework.cloud.gateway.config.SimpleUrlHandlerMappingGlobalCorsAutoConfiguration,\
+     *
+     *
+     *
+     *
+     *
      *      org.springframework.cloud.gateway.config.GatewayReactiveLoadBalancerClientAutoConfiguration,\
      *      org.springframework.cloud.gateway.config.GatewayReactiveOAuth2AutoConfiguration
      * */
     /**
-     * GatewayResilience4JCircuitBreakerAutoConfiguration
+     * GatewayReactiveOAuth2AutoConfiguration
      *
      * */
     /**
