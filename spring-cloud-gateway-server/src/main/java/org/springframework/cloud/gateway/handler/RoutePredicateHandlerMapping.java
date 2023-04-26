@@ -81,8 +81,12 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 				&& exchange.getRequest().getURI().getPort() == this.managementPort) {
 			return Mono.empty();
 		}
+		// 设置一个属性
 		exchange.getAttributes().put(GATEWAY_HANDLER_MAPPER_ATTR, getSimpleName());
 
+		/**
+		 * 得到 List<Route>，遍历，根据 Route 的 Predicate 决定是否匹配，返回第一个匹配的Route
+		 * */
 		return lookupRoute(exchange)
 				// .log("route-predicate-handler-mapping", Level.FINER) //name this
 				.flatMap((Function<Route, Mono<?>>) r -> {
@@ -91,7 +95,16 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 						logger.debug("Mapping [" + getExchangeDesc(exchange) + "] to " + r);
 					}
 
+					/**
+					 * 将 Route 设置到 exchange 中
+					 *
+					 * 后续流程会用到
+					 * 		{@link FilteringWebHandler#handle(ServerWebExchange)}
+					 * */
 					exchange.getAttributes().put(GATEWAY_ROUTE_ATTR, r);
+					/**
+					 * 会有 SimpleHandlerAdapter 处理
+					 * */
 					return Mono.just(webHandler);
 				}).switchIfEmpty(Mono.empty().then(Mono.fromRunnable(() -> {
 					exchange.getAttributes().remove(GATEWAY_PREDICATE_ROUTE_ATTR);
@@ -121,6 +134,9 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 	}
 
 	protected Mono<Route> lookupRoute(ServerWebExchange exchange) {
+		/**
+		 * 得到 Route，根据 Route 的 Predicate 决定是否匹配
+		 * */
 		return this.routeLocator.getRoutes()
 				/**
 				 * concatMap 的特点是 返回的内容不是 Mono.empty() 、Flux.empty() 才收集到 Flux 中
@@ -128,9 +144,14 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 				// individually filter routes so that filterWhen error delaying is not a
 				// problem
 				.concatMap(route -> Mono.just(route).filterWhen(r -> {
+					// exchange 中存一下 routeId
 					// add the current route we are testing
 					exchange.getAttributes().put(GATEWAY_PREDICATE_ROUTE_ATTR, r.getId());
-					// 执行谓词
+					/**
+					 * 执行谓词
+					 *
+					 * {@link AsyncPredicate.AndAsyncPredicate#apply(Object)}
+					 * */
 					return r.getPredicate().apply(exchange);
 				})
 						// instead of immediately stopping main flux due to error, log and

@@ -37,6 +37,7 @@ public class GatewayClassPathWarningAutoConfiguration {
 	private static final String BORDER = "\n\n**********************************************************\n\n";
 
 	@Configuration(proxyBeanMethods = false)
+	// SpringMVC 会存在这个类，所以条件会满足，这个类就会注册到BeanFactory中
 	@ConditionalOnClass(name = "org.springframework.web.servlet.DispatcherServlet")
 	@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 	protected static class SpringMvcFoundOnClasspathConfiguration {

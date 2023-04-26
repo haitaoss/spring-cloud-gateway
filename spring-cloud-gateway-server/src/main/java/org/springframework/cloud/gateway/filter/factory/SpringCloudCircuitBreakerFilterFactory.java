@@ -87,7 +87,9 @@ public abstract class SpringCloudCircuitBreakerFilterFactory
 
 	@Override
 	public GatewayFilter apply(Config config) {
+		// 得到 ReactiveCircuitBreaker
 		ReactiveCircuitBreaker cb = reactiveCircuitBreakerFactory.create(config.getId());
+		// 拿到配置的状态码
 		Set<HttpStatus> statuses = config.getStatusCodes().stream().map(HttpStatusHolder::parse)
 				.filter(statusHolder -> statusHolder.getHttpStatus() != null).map(HttpStatusHolder::getHttpStatus)
 				.collect(Collectors.toSet());
@@ -95,17 +97,23 @@ public abstract class SpringCloudCircuitBreakerFilterFactory
 		return new GatewayFilter() {
 			@Override
 			public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+				// 将逻辑委托给 ReactiveCircuitBreaker 执行
 				return cb.run(chain.filter(exchange).doOnSuccess(v -> {
+					// 响应的状态码 满足 配置的状态码 就抛出异常
 					if (statuses.contains(exchange.getResponse().getStatusCode())) {
 						HttpStatus status = exchange.getResponse().getStatusCode();
 						throw new CircuitBreakerStatusCodeException(status);
 					}
 				}), t -> {
+					// 这是 fallback 逻辑
+
+					// 没有配置 fallbackUri 就直接抛出异常
 					if (config.getFallbackUri() == null) {
 						return Mono.error(t);
 					}
 
 					exchange.getResponse().setStatusCode(null);
+					// 重设 exchange 中的信息，比如删除 Route
 					reset(exchange);
 
 					// TODO: copied from RouteToRequestUrlFilter
@@ -115,12 +123,14 @@ public abstract class SpringCloudCircuitBreakerFilterFactory
 					URI requestUrl = UriComponentsBuilder.fromUri(uri).host(null).port(null)
 							.uri(config.getFallbackUri()).scheme(null).build(encoded).toUri();
 					exchange.getAttributes().put(GATEWAY_REQUEST_URL_ATTR, requestUrl);
+					// 将异常信息设置到 exchange 中
 					addExceptionDetails(t, exchange);
 
 					// Reset the exchange
 					reset(exchange);
 
 					ServerHttpRequest request = exchange.getRequest().mutate().uri(requestUrl).build();
+					// 使用 getDispatcherHandler 处理。可以理解成系统内的转发
 					return getDispatcherHandler().handle(exchange.mutate().request(request).build());
 				}).onErrorResume(t -> handleErrorWithoutFallback(t, config.isResumeWithoutError()));
 			}

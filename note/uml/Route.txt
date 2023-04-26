@@ -1,0 +1,91 @@
+@startuml
+
+!theme plain
+top to bottom direction
+skinparam linetype ortho
+
+interface AsyncPredicate<T> << interface >> {
+  + negate(): AsyncPredicate<T>
+  + from(Predicate<ServerWebExchange>): AsyncPredicate<ServerWebExchange>
+  + accept(Visitor): void
+  + and(AsyncPredicate<T>): AsyncPredicate<T>
+  + not(AsyncPredicate<T>): AsyncPredicate<T>
+  + or(AsyncPredicate<T>): AsyncPredicate<T>
+}
+class FilteringWebHandler {
+  # logger: Log
+  - globalFilters: List<GatewayFilter>
+  - loadFilters(List<GlobalFilter>): List<GatewayFilter>
+  + handle(ServerWebExchange): Mono<Void>
+}
+interface GatewayFilter << interface >> {
+  + NAME_KEY: String
+  + VALUE_KEY: String
+  + filter(ServerWebExchange, GatewayFilterChain): Mono<Void>
+}
+interface GatewayFilterFactory<C> << interface >> {
+  + NAME_KEY: String
+  + VALUE_KEY: String
+  + name(): String
+  + apply(String, C): GatewayFilter
+  + apply(String, Consumer<C>): GatewayFilter
+  + apply(C): GatewayFilter
+  + apply(Consumer<C>): GatewayFilter
+  + newConfig(): C
+  + getConfigClass(): Class<C>
+}
+class Route {
+  - id: String
+  - metadata: Map<String, Object>
+  - uri: URI
+  - predicate: AsyncPredicate<ServerWebExchange>
+  - gatewayFilters: List<GatewayFilter>
+  - order: int
+  + getOrder(): int
+  + equals(Object): boolean
+  + getId(): String
+  + builder(RouteDefinition): Builder
+  + async(): AsyncBuilder
+  + getFilters(): List<GatewayFilter>
+  + getPredicate(): AsyncPredicate<ServerWebExchange>
+  + toString(): String
+  + builder(): Builder
+  + getMetadata(): Map<String, Object>
+  + getUri(): URI
+  + async(RouteDefinition): AsyncBuilder
+  + hashCode(): int
+}
+interface RoutePredicateFactory<C> << interface >> {
+  + PATTERN_KEY: String
+  + apply(C): Predicate<ServerWebExchange>
+  + applyAsync(Consumer<C>): AsyncPredicate<ServerWebExchange>
+  + applyAsync(C): AsyncPredicate<ServerWebExchange>
+  + beforeApply(C): void
+  + apply(Consumer<C>): Predicate<ServerWebExchange>
+  + newConfig(): C
+  + getConfigClass(): Class<C>
+  + name(): String
+}
+class RoutePredicateHandlerMapping {
+  - managementPort: Integer
+  - webHandler: FilteringWebHandler
+  - routeLocator: RouteLocator
+  - managementPortType: ManagementPortType
+  - getManagementPortType(Environment): ManagementPortType
+  - getPortProperty(Environment, String): Integer
+  - getExchangeDesc(ServerWebExchange): String
+  # getSimpleName(): String
+  # getHandlerInternal(ServerWebExchange): Mono<?>
+  # getCorsConfiguration(Object, ServerWebExchange): CorsConfiguration?
+  # lookupRoute(ServerWebExchange): Mono<Route>
+  # validateRoute(Route, ServerWebExchange): void
+}
+
+Route *-- AsyncPredicate
+Route *-- GatewayFilter
+RoutePredicateFactory ..^ AsyncPredicate :生成
+GatewayFilterFactory ..^ GatewayFilter :生成
+RoutePredicateHandlerMapping *-- RouteLocator
+RouteLocator ...^ Route :生成
+RoutePredicateHandlerMapping *-- FilteringWebHandler
+@enduml

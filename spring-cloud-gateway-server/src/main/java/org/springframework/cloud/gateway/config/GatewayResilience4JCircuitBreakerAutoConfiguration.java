@@ -42,6 +42,13 @@ import org.springframework.web.reactive.DispatcherHandler;
 		ReactiveCircuitBreakerFactory.class, ReactiveResilience4JCircuitBreakerFactory.class })
 public class GatewayResilience4JCircuitBreakerAutoConfiguration {
 
+	/**
+	 * SpringCloudCircuitBreakerResilience4JFilterFactory 实现 GatewayFilterFactory 接口，
+	 * 其核心逻辑是使用 ReactiveCircuitBreaker 来执行业务逻辑。
+	 * @param reactiveCircuitBreakerFactory
+	 * @param dispatcherHandler
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnBean(ReactiveResilience4JCircuitBreakerFactory.class)
 	@ConditionalOnEnabledFilter
@@ -51,6 +58,11 @@ public class GatewayResilience4JCircuitBreakerAutoConfiguration {
 		return new SpringCloudCircuitBreakerResilience4JFilterFactory(reactiveCircuitBreakerFactory, dispatcherHandler);
 	}
 
+	/**
+	 * FallbackHeadersGatewayFilterFactory 实现 GatewayFilterFactory 接口，
+	 * 如果请求是 fallback 执行的，那就设置一些请求头
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnMissingBean
 	@ConditionalOnEnabledFilter

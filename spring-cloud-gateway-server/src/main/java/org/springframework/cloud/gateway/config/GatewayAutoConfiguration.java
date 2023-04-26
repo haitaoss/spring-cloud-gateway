@@ -182,13 +182,17 @@ import org.springframework.web.reactive.socket.server.upgrade.ReactorNettyReques
 @ConditionalOnClass(DispatcherHandler.class)
 public class GatewayAutoConfiguration {
 
+	/**
+	 * 是 Converter 的实现类，可将 String 转成 ZonedDateTime 类型。
+	 * @return
+	 */
 	@Bean
 	public StringToZonedDateTimeConverter stringToZonedDateTimeConverter() {
 		return new StringToZonedDateTimeConverter();
 	}
 
 	/**
-	 * 就是一个工具类，可以用来构造出 RouteLocator 实例
+	 * 是工具类，可用来构造出 RouteLocator 实例。若想使用编码的方式配置 Route，推荐使用这个 RouteLocatorBuilder。
 	 * @param context
 	 * @return
 	 */
@@ -210,7 +214,7 @@ public class GatewayAutoConfiguration {
 
 	/**
 	 * 实现 RouteDefinitionRepository 接口，定义如何 save、delete RouteDefinition
-	 * 实现 RouteDefinitionLocator 接口，其特点是从 缓存中返回 List<RouteDefinition>
+	 * 实现 RouteDefinitionLocator 接口，其特点是从缓存(Map、Redis等等)中得到 List<RouteDefinition>
 	 * @return
 	 */
 	@Bean
@@ -219,6 +223,11 @@ public class GatewayAutoConfiguration {
 		return new InMemoryRouteDefinitionRepository();
 	}
 
+	/**
+	 * 聚合所有的 RouteDefinitionLocator
+	 * @param routeDefinitionLocators
+	 * @return
+	 */
 	@Bean
 	@Primary
 	public RouteDefinitionLocator routeDefinitionLocator(List<RouteDefinitionLocator> routeDefinitionLocators) {
@@ -226,7 +235,8 @@ public class GatewayAutoConfiguration {
 	}
 
 	/**
-	 * 是一个工具类，是用来实例化类的，实例化时会进行属性绑定和属性校验
+	 * 是一个工具类，可用来 实例化类、属性绑定和属性校验(JSR303)
+	 * GatewayFilterFactory、RoutePredicateFactory 会使用 ConfigurationService 生成 Config 实例，并完成属性绑定和属性校验(JSR303)，
 	 * @param beanFactory
 	 * @param conversionService
 	 * @param validator
@@ -241,6 +251,13 @@ public class GatewayAutoConfiguration {
 
 	/**
 	 * RouteLocator 接口是用来生成 Flux<Route> 的。
+	 *
+	 * 依赖 RouteDefinitionLocator 得到 RouteDefinition , 而 RouteDefinition 中定义了 FilterDefinition、PredicateDefinition，
+	 * 会使用 GatewayFilterFactory、RoutePredicateFactory 生成 GatewayFilter、Predicate ，然后配置给 Route 实例
+	 * 而 GatewayFilterFactory、RoutePredicateFactory 继承这两个接口 ShortcutConfigurable、Configurable，这两个接口是为了得到 Config 。
+	 * 会使用 ConfigurationService 生成 Config 实例，并完成属性绑定和属性校验(JSR303)。
+	 * GatewayFilterFactory、RoutePredicateFactory 会根据 Config 来生成 GatewayFilter、Predicate
+	 *
 	 * @param properties
 	 * @param gatewayFilters
 	 * @param predicates
@@ -283,7 +300,9 @@ public class GatewayAutoConfiguration {
 	}
 
 	/**
-	 * 实现 WebHandler 接口，可以理解成 Handler，是用来执行具体逻辑的
+	 * FilteringWebHandler 实现 WebHandler 接口，可以理解成 SpringMVC 中的 handler，
+	 * RoutePredicateHandlerMapping.getHandler() 返回的就是 FilteringWebHandler，
+	 * FilteringWebHandler 就是遍历执行 GlobalFilter + Route配置的WebFilter
 	 * @param globalFilters
 	 * @return
 	 */
@@ -292,14 +311,21 @@ public class GatewayAutoConfiguration {
 		return new FilteringWebHandler(globalFilters);
 	}
 
+	/**
+	 * 同源配置的信息
+	 * @return
+	 */
 	@Bean
 	public GlobalCorsProperties globalCorsProperties() {
 		return new GlobalCorsProperties();
 	}
 
 	/**
-	 * 继承 AbstractHandlerMapping。DispatcherHandler 会使用它来匹配 Request，匹配了就用来执行，
-	 * 它的执行逻辑是交给 FilteringWebHandler 来做
+	 * RoutePredicateHandlerMapping 实现 HandlerMapping 接口。
+	 *
+	 * RoutePredicateHandlerMapping#getHandler 是根据 RouteLocator 得到的 List<Route> 遍历执行 Route.getPredicate().apply(ServerWebExchange)
+	 * 为 true 就说明匹配，会返回 FilteringWebHandler
+	 *
 	 * @param webHandler
 	 * @param routeLocator
 	 * @param globalCorsProperties
@@ -313,6 +339,10 @@ public class GatewayAutoConfiguration {
 		return new RoutePredicateHandlerMapping(webHandler, routeLocator, globalCorsProperties, environment);
 	}
 
+	/**
+	 * GatewayProperties 绑定配置的路由规则(predicate、filter)
+	 * @return
+	 */
 	@Bean
 	public GatewayProperties gatewayProperties() {
 		return new GatewayProperties();
@@ -812,6 +842,16 @@ public class GatewayAutoConfiguration {
 	@ConditionalOnClass(Health.class)
 	protected static class GatewayActuatorConfiguration {
 
+		/**
+		 * GatewayControllerEndpoint 用于查看、新增、更新、删除 RouteDefinition
+		 * @param globalFilters
+		 * @param gatewayFilters
+		 * @param routePredicates
+		 * @param routeDefinitionWriter
+		 * @param routeLocator
+		 * @param routeDefinitionLocator
+		 * @return
+		 */
 		@Bean
 		@ConditionalOnProperty(name = "spring.cloud.gateway.actuator.verbose.enabled", matchIfMissing = true)
 		@ConditionalOnAvailableEndpoint

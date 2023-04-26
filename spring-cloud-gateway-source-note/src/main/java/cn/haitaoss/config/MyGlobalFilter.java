@@ -8,6 +8,7 @@ import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFac
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
+import org.springframework.cloud.gateway.support.ipresolver.XForwardedRemoteAddressResolver;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
@@ -26,7 +27,7 @@ import java.util.Map;
  */
 @Component
 public class MyGlobalFilter {
-//    @Component
+    //    @Component
     public static class RouteIdGlobalFilter implements GlobalFilter, Ordered {
         @Override
         public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -63,6 +64,16 @@ public class MyGlobalFilter {
                 .build();
     }
 
+    @Bean
+    public RouteLocator remoteAddress(RouteLocatorBuilder builder) {
+        return builder.routes()
+                .route("id", predicateSpec -> predicateSpec
+                        .remoteAddr(XForwardedRemoteAddressResolver.trustAll(), "")
+                        .and()
+                        .path("")
+                        .and()
+                        .uri("")).build();
+    }
 
     @Bean
     public GlobalFilter customGlobalPostFilter() {

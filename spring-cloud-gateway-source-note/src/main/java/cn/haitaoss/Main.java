@@ -46,13 +46,8 @@ public class Main {
      *      The Path Route Predicate Factory
      *      The Query Route Predicate Factory
      *      The RemoteAddr Route Predicate Factory
-     *          Modifying the Way Remote Addresses Are Resolved
-     *          您可以通过设置自定义 RemoteAddressResolver 来自定义解析远程地址的方式。 Spring Cloud Gateway 附带一个基于 X-Forwarded-For 标头 XForwardedRemoteAddressResolver 的非默认远程地址解析器。
-     *          RemoteAddressResolver resolver = XForwardedRemoteAddressResolver
-     *          .maxTrustedIndex(1);
-     *
-     *     The Weight Route Predicate Factory
-     *     The XForwarded Remote Addr Route Predicate Factory
+     *      The XForwarded Remote Addr Route Predicate Factory
+     *      The Weight Route Predicate Factory
      *
      *
      *      - Path=/red/{segment},/blue/{segment} 会将占位符的值存到 request 域中
@@ -483,24 +478,13 @@ public class Main {
      *      org.springframework.cloud.gateway.config.GatewayReactiveOAuth2AutoConfiguration
      * */
     /**
+     * GatewayResilience4JCircuitBreakerAutoConfiguration
+     *
+     * */
+    /**
      * 设置 spring.cloud.gateway.enabled=false 禁用 gateway 的功能
      * */
     /**
-     * GatewayClassPathWarningAutoConfiguration
-     *      通过构造器函数，检验启动环境必须是 reactive 而不能是 servlet 的web环境
-     * */
-    /**
-     * GatewayAutoConfiguration
-     *      RouteLocatorBuilder
-     *      CompositeRouteDefinitionLocator、PropertiesRouteDefinitionLocator、InMemoryRouteDefinitionRepository
-     *      CachingRouteLocator、CompositeRouteLocator、RouteDefinitionRouteLocator
-     *      FilteringWebHandler
-     *      RoutePredicateHandlerMapping
-     *      HttpHeadersFilter
-     *      GlobalFilter
-     *      GatewayFilterFactory
-     *      RoutePredicateFactory
-     *      NettyConfiguration、GatewayActuatorConfiguration
      *
      *      {@link NettyRoutingFilter#filter(ServerWebExchange, GatewayFilterChain)} 这是最后一个执行的 GlobalFilter 其作用是发送发送请求的逻辑。执行 http、https 请求
      *      {@link WebsocketRoutingFilter#filter(ServerWebExchange, GatewayFilterChain)} 这是执行 ws 请求

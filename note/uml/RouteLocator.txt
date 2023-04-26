@@ -1,0 +1,191 @@
+@startuml
+
+!theme plain
+top to bottom direction
+skinparam linetype ortho
+
+class CachingRouteDefinitionLocator {
+  - delegate: RouteDefinitionLocator
+  - CACHE_KEY: String
+  - routeDefinitions: Flux<RouteDefinition>
+  - cache: Map<String, List>
+  + refresh(): Flux<RouteDefinition>
+  + onApplicationEvent(RefreshRoutesEvent): void
+  + getRouteDefinitions(): Flux<RouteDefinition>
+  - fetch(): Flux<RouteDefinition>
+}
+class CachingRouteLocator {
+  - cache: Map<String, List>
+  - CACHE_KEY: String
+  - applicationEventPublisher: ApplicationEventPublisher
+  - log: Log
+  - delegate: RouteLocator
+  - routes: Flux<Route>
+  + getOrder(): int
+  + refresh(): Flux<Route>
+  + getRoutes(): Flux<Route>
+  - handleRefreshError(Throwable): void
+  + onApplicationEvent(RefreshRoutesEvent): void
+  + setApplicationEventPublisher(ApplicationEventPublisher): void
+  - fetch(): Flux<Route>
+}
+class CompositeRouteDefinitionLocator {
+  - delegates: Flux<RouteDefinitionLocator>
+  - idGenerator: IdGenerator
+  - log: Log
+  # randomId(): Mono<String>
+  + getRouteDefinitions(): Flux<RouteDefinition>
+}
+class CompositeRouteLocator {
+  - delegates: Flux<RouteLocator>
+  + getRoutes(): Flux<Route>
+}
+class FilterDefinition {
+  - args: Map<String, String>
+  - name: String
+  + setArgs(Map<String, String>): void
+  + getArgs(): Map<String, String>
+  + addArg(String, String): void
+  + getName(): String
+  + setName(String): void
+  + equals(Object): boolean
+  + hashCode(): int
+  + toString(): String
+}
+
+class PredicateDefinition {
+  - name: String
+  - args: Map<String, String>
+  + toString(): String
+  + addArg(String, String): void
+  + hashCode(): int
+  + getName(): String
+  + setArgs(Map<String, String>): void
+  + getArgs(): Map<String, String>
+  + equals(Object): boolean
+  + setName(String): void
+}
+class PropertiesRouteDefinitionLocator {
+  - properties: GatewayProperties
+  + getRouteDefinitions(): Flux<RouteDefinition>
+}
+
+class RouteDefinition {
+  - order: int
+  - id: String
+  - metadata: Map<String, Object>
+  - filters: List<FilterDefinition>
+  - predicates: List<PredicateDefinition>
+  - uri: URI
+  + setMetadata(Map<String, Object>): void
+  + getMetadata(): Map<String, Object>
+  + getId(): String
+  + getFilters(): List<FilterDefinition>
+  + hashCode(): int
+  + setOrder(int): void
+  + getOrder(): int
+  + setId(String): void
+  + getPredicates(): List<PredicateDefinition>
+  + toString(): String
+  + setPredicates(List<PredicateDefinition>): void
+  + getUri(): URI
+  + setFilters(List<FilterDefinition>): void
+  + setUri(URI): void
+  + equals(Object): boolean
+}
+interface RouteDefinitionLocator << interface >> {
+  + getRouteDefinitions(): Flux<RouteDefinition>
+}
+class RouteDefinitionRouteLocator {
+  + DEFAULT_FILTERS: String
+  - gatewayProperties: GatewayProperties
+  # logger: Log
+  - routeDefinitionLocator: RouteDefinitionLocator
+  - configurationService: ConfigurationService
+  - predicates: Map<String, RoutePredicateFactory>
+  - gatewayFilterFactories: Map<String, GatewayFilterFactory>
+  + getRoutes(): Flux<Route>
+  - initFactories(List<RoutePredicateFactory>): void
+  ~ loadGatewayFilters(String, List<FilterDefinition>): List<GatewayFilter>
+  - getFilters(RouteDefinition): List<GatewayFilter>
+  - convertToRoute(RouteDefinition): Route
+  - lookup(RouteDefinition, PredicateDefinition): AsyncPredicate<ServerWebExchange>
+  - combinePredicates(RouteDefinition): AsyncPredicate<ServerWebExchange>
+}
+interface RouteLocator << interface >> {
+  + getRoutes(): Flux<Route>
+}
+
+class RouteLocatorBuilder {
+  - context: ConfigurableApplicationContext
+  + routes(): Builder
+}
+class Builder {
+  - context: ConfigurableApplicationContext
+  - routes: List<Buildable<Route>>
+  ~ getContext(): ConfigurableApplicationContext
+  ~ add(Buildable<Route>): void
+  + route(Function<PredicateSpec, Buildable<Route>>): Builder
+  + route(String, Function<PredicateSpec, Buildable<Route>>): Builder
+  + build(): RouteLocator
+}
+class RouteLocatorBuilder {
+  - context: ConfigurableApplicationContext
+  + routes(): Builder
+}
+
+interface AsyncPredicate<T> << interface >> {
+  + negate(): AsyncPredicate<T>
+  + from(Predicate<ServerWebExchange>): AsyncPredicate<ServerWebExchange>
+  + accept(Visitor): void
+  + and(AsyncPredicate<T>): AsyncPredicate<T>
+  + not(AsyncPredicate<T>): AsyncPredicate<T>
+  + or(AsyncPredicate<T>): AsyncPredicate<T>
+}
+interface GatewayFilter << interface >> {
+  + NAME_KEY: String
+  + VALUE_KEY: String
+  + filter(ServerWebExchange, GatewayFilterChain): Mono<Void>
+}
+class Route {
+  - id: String
+  - metadata: Map<String, Object>
+  - uri: URI
+  - predicate: AsyncPredicate<ServerWebExchange>
+  - gatewayFilters: List<GatewayFilter>
+  - order: int
+  + getOrder(): int
+  + equals(Object): boolean
+  + getId(): String
+  + builder(RouteDefinition): Builder
+  + async(): AsyncBuilder
+  + getFilters(): List<GatewayFilter>
+  + getPredicate(): AsyncPredicate<ServerWebExchange>
+  + toString(): String
+  + builder(): Builder
+  + getMetadata(): Map<String, Object>
+  + getUri(): URI
+  + async(RouteDefinition): AsyncBuilder
+  + hashCode(): int
+}
+
+CachingRouteDefinitionLocator     -[#008200,dashed]-^  RouteDefinitionLocator
+CachingRouteLocator               -[#008200,dashed]-^  RouteLocator
+CompositeRouteDefinitionLocator   -[#008200,dashed]-^  RouteDefinitionLocator
+CompositeRouteLocator             -[#008200,dashed]-^  RouteLocator
+PropertiesRouteDefinitionLocator  -[#008200,dashed]-^  RouteDefinitionLocator
+RouteDefinitionRouteLocator       -[#008200,dashed]-^  RouteLocator
+Builder              +-[#820000,plain]-  RouteLocatorBuilder
+CompositeRouteLocator *-- RouteLocator
+CachingRouteLocator *-- RouteLocator
+RouteDefinitionRouteLocator *-- RouteDefinitionLocator
+CompositeRouteDefinitionLocator *-- RouteDefinitionLocator
+RouteDefinition *-- FilterDefinition
+RouteDefinition *-- PredicateDefinition
+RouteDefinitionLocator *-- RouteDefinition
+
+Builder ..|> RouteLocator : 生成
+Route *-- AsyncPredicate
+Route *-- GatewayFilter
+RouteLocator *-- Route
+@enduml

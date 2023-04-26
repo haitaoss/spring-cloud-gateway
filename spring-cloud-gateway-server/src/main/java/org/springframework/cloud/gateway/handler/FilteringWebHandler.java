@@ -73,7 +73,12 @@ public class FilteringWebHandler implements WebHandler {
 
 	@Override
 	public Mono<Void> handle(ServerWebExchange exchange) {
+		/**
+		 * 拿到 Route 实例。这个是在前一个步骤设置的
+		 * 		{@link RoutePredicateHandlerMapping#getHandlerInternal(ServerWebExchange)}
+		 * */
 		Route route = exchange.getRequiredAttribute(GATEWAY_ROUTE_ATTR);
+		// 拿到 Route 的 GatewayFilter
 		List<GatewayFilter> gatewayFilters = route.getFilters();
 
 		// 先添加 globalFilter

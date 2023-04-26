@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.cloud.gateway.filter.GatewayFilter;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.server.ServerWebExchange;
 
@@ -47,10 +48,17 @@ public class FallbackHeadersGatewayFilterFactory
 		return (exchange, chain) -> {
 			Throwable exception = exchange.getAttribute(CIRCUITBREAKER_EXECUTION_EXCEPTION_ATTR);
 			ServerWebExchange filteredExchange;
+			/**
+			 * 说明不是 fallback 请求
+			 *
+			 * 设置这个属性的源码在这里
+			 * {@link GatewayFilter#filter(ServerWebExchange, GatewayFilterChain)}
+			 * */
 			if (exception == null) {
 				filteredExchange = exchange;
 			}
 			else {
+				// 将配置的 fallbackHeader 设置到 filteredExchange 中
 				filteredExchange = addFallbackHeaders(config, exchange, exception);
 			}
 			return chain.filter(filteredExchange);
