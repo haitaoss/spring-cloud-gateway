@@ -50,6 +50,7 @@ public class AfterRoutePredicateFactory extends AbstractRoutePredicateFactory<Af
 			@Override
 			public boolean test(ServerWebExchange serverWebExchange) {
 				final ZonedDateTime now = ZonedDateTime.now();
+				// 当前时间大于 配置的时间就是 true
 				return now.isAfter(config.getDatetime());
 			}
 

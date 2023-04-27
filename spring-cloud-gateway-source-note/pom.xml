@@ -18,9 +18,20 @@
     </properties>
 
     <dependencies>
+        <!-- gateway 的依赖，会自动引入 WebFlux  -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-gateway</artifactId>
+        </dependency>
+        <!-- 负载均衡依赖，用来测试 ReactiveLoadBalancerClientFilter -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+        <!-- 基于 resilience4j 实现的断路器，用来测试 SpringCloudCircuitBreakerResilience4JFilterFactory -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

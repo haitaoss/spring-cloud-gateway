@@ -368,6 +368,10 @@ public class GatewayAutoConfiguration {
 		return new RemoveHopByHopHeadersFilter();
 	}
 
+	/**
+	 * 实现 HttpHeadersFilter 接口。 NettyRoutingFilter、WebsocketRoutingFilter 会依赖这种类型的bean，用来对 Header 进行修改
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnProperty(name = "spring.cloud.gateway.x-forwarded.enabled", matchIfMissing = true)
 	public XForwardedHeadersFilter xForwardedHeadersFilter() {
@@ -467,6 +471,10 @@ public class GatewayAutoConfiguration {
 
 	// Predicate Factory beans
 
+	/**
+	 * 是用来生成 Predicate 的工厂
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnEnabledPredicate
 	public AfterRoutePredicateFactory afterRoutePredicateFactory() {
@@ -554,6 +562,10 @@ public class GatewayAutoConfiguration {
 
 	// GatewayFilter Factory beans
 
+	/**
+	 * 生成 GatewayFilter 的
+	 * @return
+	 */
 	@Bean
 	@ConditionalOnEnabledFilter
 	public AddRequestHeaderGatewayFilterFactory addRequestHeaderGatewayFilterFactory() {
@@ -791,6 +803,13 @@ public class GatewayAutoConfiguration {
 			return new HttpClientProperties();
 		}
 
+		/**
+		 * 会使用这个执行 Http、Https 请求，同时依赖 HttpHeadersFilter 用来对 Header 进行修改
+		 * @param httpClient
+		 * @param headersFilters
+		 * @param properties
+		 * @return
+		 */
 		@Bean
 		@ConditionalOnEnabledGlobalFilter
 		public NettyRoutingFilter routingFilter(HttpClient httpClient,

@@ -1,27 +1,37 @@
+logging:
+  level:
+    root: debug
 spring:
   cloud:
     gateway:
+      # 设置默认的 GatewayFilter
       default-filters:
-        # 这是正则分组的语法
-        - RewritePath=/index/?(?<segment>.*), /$\{segment}
-        - RewritePath=/weight/?(?<segment>.*), /index
         - RouteId
+        - AddRequestParameter=routeId , {routeId}
       routes:
-        - id: id1
-          uri: http://localhost:8080
+        - id: loadbalance_route
+#          uri: http://localhost:8080
+          uri: lb://s1
           predicates:
-            - Path=/index/**
-        - id: weight_high
-          uri: http://localhost:8080
-          predicates:
-            - Path=/weight/**
-            - Weight=group1, 8
+            - Path=/lb/**
           filters:
-            - AddRequestParameter=id, {routeId}
-        - id: weight_low
+            - RewritePath=/lb/?(?<remaining>.*) , /$\{remaining}
+
+        - id: circuitbreaker_route
+          #uri: lb://s1:8080
           uri: http://localhost:8080
           predicates:
-            - Path=/weight/**
-            - Weight=group1, 2
+            - Path=/cb/**
           filters:
-            - AddRequestParameter=id, {routeId}
+            - RewritePath=/cb.+, /cb_error
+#            - RewritePath=/cb, /cb_error_undefined
+            - name: CircuitBreaker
+              args:
+                name: myCircuitBreaker
+                resumeWithoutError: false
+                # 响应的状态码是这个 或者 uri访问错误，都会使用 fallbackUri 执行一次
+                statusCodes:
+                  - 500
+                fallbackUri: /index
+#                fallbackUri: http://localhost:8080/s1/index
+#                fallbackUri: forward:/index

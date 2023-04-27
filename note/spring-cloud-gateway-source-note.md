@@ -25,7 +25,7 @@ Spring Cloud Gateway 是基于 Spring WebFlux 实现的，是通过注册 WebFlu
 
 ```properties
 # Spring WebFlux 处理请求的生命周期
-客户端请求 -> WebFlux服务 -> WebFilter -> HandlerMapping -> HandlerAdapter -> 执行Handler方法
+客户端请求 -> WebFlux服务 -> WebFilter -> DispatcherHandler -> HandlerMapping -> HandlerAdapter -> 执行Handler方法
 ```
 
 Gateway 通过注册 [RoutePredicateHandlerMapping](#RoutePredicateHandlerMapping) 实现核心逻辑
@@ -114,126 +114,155 @@ public class GatewayClassPathWarningAutoConfiguration {
 
 可以自定义这些类型的bean实现功能的扩展：**RouteLocator**、**HttpHeaderFilter**、**GlobalFilter** 、**GatewayFilterFactory**、**RoutePredicateFactory** 
 
+默认通过 @Bean 注册了很多的  GlobalFilter、GatewayFilterFactory、RoutePredicateFactory 且都是有条件注解的，可以通过设置属性不进行默认注册。主要是有这[三个条件注解](#@ConditionalOnEnabledGlobalFilter、@ConditionalOnEnabledFilter、@ConditionalOnEnabledPredicate)
+
 ```java
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "spring.cloud.gateway.enabled", matchIfMissing = true)
 @ConditionalOnClass(DispatcherHandler.class)
 public class GatewayAutoConfiguration {
 
-	/**
-	 * 是工具类，可用来构造出 RouteLocator 实例。若想使用编码的方式配置 Route，推荐使用这个 RouteLocatorBuilder。
-	 */
-	@Bean
-	public RouteLocatorBuilder routeLocatorBuilder(ConfigurableApplicationContext context) {
-		return new RouteLocatorBuilder(context);
-	}
-
-	/**
-	 * 实现 RouteDefinitionLocator 接口，其特点是根据 GatewayProperties(配置文件中定义的route) 的内容返回 List<RouteDefinition>
-	 */
-	@Bean
-	@ConditionalOnMissingBean
-	public PropertiesRouteDefinitionLocator propertiesRouteDefinitionLocator(GatewayProperties properties) {
-		return new PropertiesRouteDefinitionLocator(properties);
-	}
-
-	/**
-	 * 实现 RouteDefinitionRepository 接口，定义如何 save、delete RouteDefinition
-	 * 实现 RouteDefinitionLocator 接口，其特点是从缓存(Map、Redis等等)中得到 List<RouteDefinition>
-	 */
-	@Bean
-	@ConditionalOnMissingBean(RouteDefinitionRepository.class)
-	public InMemoryRouteDefinitionRepository inMemoryRouteDefinitionRepository() {
-		return new InMemoryRouteDefinitionRepository();
-	}
-	
     /**
-	 * 聚合所有的 RouteDefinitionLocator
-	 */
-	@Bean
-	@Primary
-	public RouteDefinitionLocator routeDefinitionLocator(List<RouteDefinitionLocator> routeDefinitionLocators) {
-		return new CompositeRouteDefinitionLocator(Flux.fromIterable(routeDefinitionLocators));
-	}
+     * 是工具类，可用来构造出 RouteLocator 实例。若想使用编码的方式配置 Route，推荐使用这个 RouteLocatorBuilder。
+     */
+    @Bean
+    public RouteLocatorBuilder routeLocatorBuilder(ConfigurableApplicationContext context) {
+        return new RouteLocatorBuilder(context);
+    }
 
-	/**
-	 * 是一个工具类，可用来 实例化类、属性绑定和属性校验(JSR303)
-	 * GatewayFilterFactory、RoutePredicateFactory 会使用 ConfigurationService 生成 Config 实例，并完成属性绑定和属性校验(JSR303)
-	 */
-	@Bean
-	public ConfigurationService gatewayConfigurationService(BeanFactory beanFactory,
-			@Qualifier("webFluxConversionService") ObjectProvider<ConversionService> conversionService,
-			ObjectProvider<Validator> validator) {
-		return new ConfigurationService(beanFactory, conversionService, validator);
-	}
+    /**
+     * 实现 RouteDefinitionLocator 接口，其特点是根据 GatewayProperties(配置文件中定义的route) 的内容返回 List<RouteDefinition>
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public PropertiesRouteDefinitionLocator propertiesRouteDefinitionLocator(GatewayProperties properties) {
+        return new PropertiesRouteDefinitionLocator(properties);
+    }
 
-	/**
-	 * RouteLocator 接口是用来生成 Flux<Route> 的。
-	 *
-	 * 依赖 RouteDefinitionLocator 得到 RouteDefinition , 而 RouteDefinition 中定义了 FilterDefinition、PredicateDefinition，
-	 * 会使用 GatewayFilterFactory、RoutePredicateFactory 生成 GatewayFilter、Predicate ，然后配置给 Route 实例
-	 * 而 GatewayFilterFactory、RoutePredicateFactory 继承这两个接口 ShortcutConfigurable、Configurable，这两个接口是为了得到 Config 。
-	 * 会使用 ConfigurationService 生成 Config 实例，并完成属性绑定和属性校验(JSR303)。
-	 * GatewayFilterFactory、RoutePredicateFactory 会根据 Config 来生成 GatewayFilter、Predicate
-	 */
-	@Bean
-	public RouteLocator routeDefinitionRouteLocator(GatewayProperties properties,
-			List<GatewayFilterFactory> gatewayFilters, List<RoutePredicateFactory> predicates,
-			RouteDefinitionLocator routeDefinitionLocator, ConfigurationService configurationService) {
-		return new RouteDefinitionRouteLocator(routeDefinitionLocator, predicates, gatewayFilters, properties,
-				configurationService);
-	}
+    /**
+     * 实现 RouteDefinitionRepository 接口，定义如何 save、delete RouteDefinition
+     * 实现 RouteDefinitionLocator 接口，其特点是从缓存(Map、Redis等等)中得到 List<RouteDefinition>
+     */
+    @Bean
+    @ConditionalOnMissingBean(RouteDefinitionRepository.class)
+    public InMemoryRouteDefinitionRepository inMemoryRouteDefinitionRepository() {
+        return new InMemoryRouteDefinitionRepository();
+    }
 
-	/**
-	 * 聚合所有的 RouteLocator 。所以我们可以自定义 RouteLocator 自定义路由
-	 */
-	@Bean
-	@Primary
-	@ConditionalOnMissingBean(name = "cachedCompositeRouteLocator")
-	// TODO: property to disable composite?
-	public RouteLocator cachedCompositeRouteLocator(List<RouteLocator> routeLocators) {
-		return new CachingRouteLocator(new CompositeRouteLocator(Flux.fromIterable(routeLocators)));
-	}
+    /**
+     * 聚合所有的 RouteDefinitionLocator
+     */
+    @Bean
+    @Primary
+    public RouteDefinitionLocator routeDefinitionLocator(List<RouteDefinitionLocator> routeDefinitionLocators) {
+        return new CompositeRouteDefinitionLocator(Flux.fromIterable(routeDefinitionLocators));
+    }
 
-	/**
-	 * 实现 ApplicationListener<ApplicationEvent> 接口，
-	 * 收到关心的事件(ContextRefreshedEvent、RefreshScopeRefreshedEvent、InstanceRegisteredEvent、ParentHeartbeatEvent、HeartbeatEvent)
-	 * 就会 发布一个 RefreshRoutesEvent 事件
-	 */
-	@Bean
-	@ConditionalOnClass(name = "org.springframework.cloud.client.discovery.event.HeartbeatMonitor")
-	public RouteRefreshListener routeRefreshListener(ApplicationEventPublisher publisher) {
-		return new RouteRefreshListener(publisher);
-	}
+    /**
+     * 是一个工具类，可用来 实例化类、属性绑定和属性校验(JSR303)
+     * GatewayFilterFactory、RoutePredicateFactory 会使用 ConfigurationService 生成 Config 实例，并完成属性绑定和属性校验(JSR303)
+     */
+    @Bean
+    public ConfigurationService gatewayConfigurationService(BeanFactory beanFactory,
+                                                            @Qualifier("webFluxConversionService") ObjectProvider<ConversionService> conversionService,
+                                                            ObjectProvider<Validator> validator) {
+        return new ConfigurationService(beanFactory, conversionService, validator);
+    }
 
-	/**
-	 * FilteringWebHandler 实现 WebHandler 接口，可以理解成 SpringMVC 中的 handler，
-	 * RoutePredicateHandlerMapping.getHandler() 返回的就是 FilteringWebHandler，
-	 * FilteringWebHandler 就是遍历执行 GlobalFilter + Route配置的WebFilter
-	 */
-	@Bean
-	public FilteringWebHandler filteringWebHandler(List<GlobalFilter> globalFilters) {
-		return new FilteringWebHandler(globalFilters);
-	}
+    /**
+     * RouteLocator 接口是用来生成 Flux<Route> 的。
+     *
+     * 依赖 RouteDefinitionLocator 得到 RouteDefinition , 而 RouteDefinition 中定义了 FilterDefinition、PredicateDefinition，
+     * 会使用 GatewayFilterFactory、RoutePredicateFactory 生成 GatewayFilter、Predicate ，然后配置给 Route 实例
+     * 而 GatewayFilterFactory、RoutePredicateFactory 继承这两个接口 ShortcutConfigurable、Configurable，这两个接口是为了得到 Config 。
+     * 会使用 ConfigurationService 生成 Config 实例，并完成属性绑定和属性校验(JSR303)。
+     * GatewayFilterFactory、RoutePredicateFactory 会根据 Config 来生成 GatewayFilter、Predicate
+     */
+    @Bean
+    public RouteLocator routeDefinitionRouteLocator(GatewayProperties properties,
+                                                    List<GatewayFilterFactory> gatewayFilters, List<RoutePredicateFactory> predicates,
+                                                    RouteDefinitionLocator routeDefinitionLocator, ConfigurationService configurationService) {
+        return new RouteDefinitionRouteLocator(routeDefinitionLocator, predicates, gatewayFilters, properties,
+                configurationService);
+    }
 
-	/**
-	 * RoutePredicateHandlerMapping 实现 HandlerMapping 接口。
-	 *
-	 * RoutePredicateHandlerMapping#getHandler 是根据 RouteLocator 得到的 List<Route> 遍历执行 Route.getPredicate().apply(ServerWebExchange)
-	 * 为 true 就说明匹配，会返回 FilteringWebHandler
-	 */
-	@Bean
-	@ConditionalOnMissingBean
-	public RoutePredicateHandlerMapping routePredicateHandlerMapping(FilteringWebHandler webHandler,
-			RouteLocator routeLocator, GlobalCorsProperties globalCorsProperties, Environment environment) {
-		return new RoutePredicateHandlerMapping(webHandler, routeLocator, globalCorsProperties, environment);
-	}
-    
-  // HttpHeaderFilter beans ...
-	// GlobalFilter beans	...
-	// Predicate Factory beans	...
-	// GatewayFilter Factory beans	...
-  // GatewayActuatorConfiguration 会注册 Endpoint 用于查看、新增、更新、删除 RouteDefinition 
+    /**
+     * 聚合所有的 RouteLocator 。所以我们可以自定义 RouteLocator 自定义路由
+     */
+    @Bean
+    @Primary
+    @ConditionalOnMissingBean(name = "cachedCompositeRouteLocator")
+    public RouteLocator cachedCompositeRouteLocator(List<RouteLocator> routeLocators) {
+        return new CachingRouteLocator(new CompositeRouteLocator(Flux.fromIterable(routeLocators)));
+    }
+
+    /**
+     * 实现 ApplicationListener<ApplicationEvent> 接口，
+     * 收到关心的事件(ContextRefreshedEvent、RefreshScopeRefreshedEvent、InstanceRegisteredEvent、ParentHeartbeatEvent、HeartbeatEvent)
+     * 就会 发布一个 RefreshRoutesEvent 事件
+     */
+    @Bean
+    @ConditionalOnClass(name = "org.springframework.cloud.client.discovery.event.HeartbeatMonitor")
+    public RouteRefreshListener routeRefreshListener(ApplicationEventPublisher publisher) {
+        return new RouteRefreshListener(publisher);
+    }
+
+    /**
+     * FilteringWebHandler 实现 WebHandler 接口，可以理解成 SpringMVC 中的 handler，
+     * RoutePredicateHandlerMapping.getHandler() 返回的就是 FilteringWebHandler，
+     * FilteringWebHandler 就是遍历执行 GlobalFilter + Route配置的WebFilter
+     */
+    @Bean
+    public FilteringWebHandler filteringWebHandler(List<GlobalFilter> globalFilters) {
+        return new FilteringWebHandler(globalFilters);
+    }
+
+    /**
+     * RoutePredicateHandlerMapping 实现 HandlerMapping 接口。
+     *
+     * RoutePredicateHandlerMapping#getHandler 是根据 RouteLocator 得到的 List<Route> 遍历执行 Route.getPredicate().apply(ServerWebExchange)
+     * 为 true 就说明匹配，会返回 FilteringWebHandler
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public RoutePredicateHandlerMapping routePredicateHandlerMapping(FilteringWebHandler webHandler,
+                                                                     RouteLocator routeLocator, GlobalCorsProperties globalCorsProperties, Environment environment) {
+        return new RoutePredicateHandlerMapping(webHandler, routeLocator, globalCorsProperties, environment);
+    }
+
+    // 生成 Predicate 的工厂
+    @Bean
+    @ConditionalOnEnabledPredicate
+    public AfterRoutePredicateFactory afterRoutePredicateFactory() {
+        return new AfterRoutePredicateFactory();
+    }
+
+    // 生成 GatewayFilter 的
+    @Bean
+    @ConditionalOnEnabledFilter
+    public AddRequestHeaderGatewayFilterFactory addRequestHeaderGatewayFilterFactory() {
+        return new AddRequestHeaderGatewayFilterFactory();
+    }
+
+    // 实现 HttpHeadersFilter 接口。 NettyRoutingFilter、WebsocketRoutingFilter 会依赖这种类型的bean，用来对 Header 进行修改
+    @Bean
+    @ConditionalOnProperty(name = "spring.cloud.gateway.x-forwarded.enabled", matchIfMissing = true)
+    public XForwardedHeadersFilter xForwardedHeadersFilter() {
+        return new XForwardedHeadersFilter();
+    }
+
+    // 会使用这个执行 Http、Https 请求，同时依赖 HttpHeadersFilter 用来对 Header 进行修改
+    @Bean
+    @ConditionalOnEnabledGlobalFilter
+    public NettyRoutingFilter routingFilter(HttpClient httpClient,
+                                            ObjectProvider<List<HttpHeadersFilter>> headersFilters, HttpClientProperties properties) {
+        return new NettyRoutingFilter(httpClient, headersFilters, properties);
+    }
+    // HttpHeaderFilter beans ...
+    // GlobalFilter beans  ...
+    // Predicate Factory beans ...
+    // GatewayFilter Factory beans ...
+    // GatewayActuatorConfiguration 会注册 Endpoint 用于查看、新增、更新、删除 RouteDefinition 
 }
 ```
 
@@ -249,8 +278,8 @@ public class GatewayResilience4JCircuitBreakerAutoConfiguration {
    /**
     * SpringCloudCircuitBreakerResilience4JFilterFactory 实现 GatewayFilterFactory 接口，
     * 其核心逻辑是使用 ReactiveCircuitBreaker 来执行业务逻辑，当 出现异常 或者 路由请求返回的状态码是期望值 就
-    * 使用 dispatcherHandler 来执行 fallbackUrl，并且会往 ServerWebExchange 设置一个key记录异常对象。 
-    *
+    * 直接使用 DispatcherHandler 来执行 fallbackUrl，可以理解成使用 fallbackUrl 重新执行一次请求。
+    * 并且会往 ServerWebExchange 设置一个key记录异常对象。  
     */
    @Bean
    @ConditionalOnBean(ReactiveResilience4JCircuitBreakerFactory.class)
@@ -578,7 +607,217 @@ ProxyResponseAutoConfiguration 是 HandlerMethodArgumentResolver 接口的实现
 
 # 核心源码
 
-# Gateway处理请求流程
+## @ConditionalOnEnabledGlobalFilter、@ConditionalOnEnabledFilter、@ConditionalOnEnabledPredicate
+
+`类的定义`
+
+```java
+@Retention(RetentionPolicy.RUNTIME)@Target({ ElementType.TYPE, ElementType.METHOD })
+@Conditional(OnEnabledGlobalFilter.class)
+public @interface ConditionalOnEnabledGlobalFilter {
+	Class<? extends GlobalFilter> value() default OnEnabledGlobalFilter.DefaultValue.class;
+}
+
+@Retention(RetentionPolicy.RUNTIME)@Target({ ElementType.TYPE, ElementType.METHOD })
+@Conditional(OnEnabledFilter.class)
+public @interface ConditionalOnEnabledFilter {
+	Class<? extends GatewayFilterFactory<?>> value() default OnEnabledFilter.DefaultValue.class;
+}
+
+@Retention(RetentionPolicy.RUNTIME)@Target({ ElementType.TYPE, ElementType.METHOD })
+@Conditional(OnEnabledPredicate.class)
+public @interface ConditionalOnEnabledPredicate {
+	Class<? extends RoutePredicateFactory<?>> value() default OnEnabledPredicate.DefaultValue.class;
+}
+```
+
+因为 @ConditionalOnEnabledGlobalFilter 上标注了 @Conditional，所以在 [ConfigurationClassPostProcessor](https://github.com/haitaoss/spring-framework/blob/source-v5.3.10/note/spring-source-note.md#conditional) 解析配置类时，会执行 `OnEnabledGlobalFilter#matches(ConditionContext,AnnotatedTypeMetadata)` 结果是`true`才会将bean注册到BeanFactory中
+
+![OnEnabledComponent](.spring-cloud-gateway-source-note_imgs/OnEnabledComponent.png)
+
+```java
+/**
+ * {@link Condition#matches(ConditionContext, AnnotatedTypeMetadata)}
+ * {@link SpringBootCondition#matches(ConditionContext, AnnotatedTypeMetadata)}
+ *      {@link OnEnabledComponent#getMatchOutcome(ConditionContext, AnnotatedTypeMetadata)}
+ *          1. 拿到类型。若注解的 value 不是默认值就返回value值,否则就拿到方法的返回值类型。
+ *              Class<? extends T> candidate = getComponentType(annotationClass(), context, metadata);
+ *          2. 确定匹配结果。前缀 + 类处理后的值 + 后缀 作为key，从 Environment 获取值，值是false则不匹配，否则匹配
+ *              determineOutcome(candidate, context.getEnvironment())
+ *
+ *      Tips: OnEnabledComponent 定义了三个抽象方法，由子类决定返回值是啥
+ *             normalizeComponentName() 得到 类处理后的值
+ *             annotationClass()   得到 注解
+ *             defaultValueClass() 得到 默认值
+ * */
+```
+
+可以通过这种方式让默认注入的失效。
+
+```properties
+spring.cloud.gateway.global-filter.XX.enabled=false
+spring.cloud.gateway.filter.XX.enabled=false
+spring.cloud.gateway.predicate.XX.enabled=false
+```
+
+## NettyRoutingFilter
+
+是非常重要的 GlobalFilter。Gateway 是通过它执行 http、https 协议的请求，依赖 HttpClient 执行请求。
+
+```java
+public class NettyRoutingFilter implements GlobalFilter, Ordered {
+   
+   @Override
+   public int getOrder() {
+      return Integer.MAX_VALUE; // 最大值，说明这是最后要执行的 GatewayFilter
+   }
+
+   @Override
+   @SuppressWarnings("Duplicates")
+   public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+      URI requestUrl = exchange.getRequiredAttribute(GATEWAY_REQUEST_URL_ATTR);
+
+      String scheme = requestUrl.getScheme();
+      // 已经路由 或者 不是 http、https 就放行
+      if (isAlreadyRouted(exchange) || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
+         return chain.filter(exchange);
+      }
+      // 设置一个属性，标记 已经路由了
+      setAlreadyRouted(exchange);
+
+      /**
+       * 遍历执行所有的 HttpHeadersFilter 得到 HttpHeaders。
+       * 也就是说可以对最终要执行的 请求头 进行加工
+       * 
+       * 注：HttpHeadersFilter 是从BeanFactory中获取的，所以我们可以自定义 HttpHeadersFilter 达到扩展的目的
+       * */
+      HttpHeaders filtered = filterRequest(getHeadersFilters(), exchange);
+
+      // 根据 Route 的元数据构造 HttpClient 然后执行请求
+      Flux<HttpClientResponse> responseFlux = getHttpClient(route, exchange)
+            .headers()
+            .responseConnection((res, connection) -> {});
+
+      // 放行
+      return responseFlux.then(chain.filter(exchange));
+   }
+
+}
+```
+
+## WebsocketRoutingFilter
+
+是非常重要的 GlobalFilter。Gateway 是通过它执行 ws、wss 协议的请求，依赖 WebSocketService 执行请求。
+
+```java
+public class WebsocketRoutingFilter implements GlobalFilter, Ordered {
+   @Override
+   public int getOrder() {
+      // 在 NettyRoutingFilter 之前执行
+      return Integer.MAX_VALUE - 1; 
+   }
+
+   @Override
+   public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+      // 有请求头 upgrade=WebSocket ，那就将 http、https 转成 ws、wss 协议
+      changeSchemeIfIsWebSocketUpgrade(exchange);
+
+      URI requestUrl = exchange.getRequiredAttribute(GATEWAY_REQUEST_URL_ATTR);
+      String scheme = requestUrl.getScheme();
+
+      // 已经路由过 或者 不是 ws、wss 协议 就放行
+      if (isAlreadyRouted(exchange) || (!"ws".equals(scheme) && !"wss".equals(scheme))) {
+         return chain.filter(exchange);
+      }
+      // 标记路由了
+      setAlreadyRouted(exchange);
+
+      HttpHeaders headers = exchange.getRequest().getHeaders();
+      /**
+       * 遍历执行所有的 HttpHeadersFilter 得到 HttpHeaders。
+       * 也就是说可以对最终要执行的 请求头 进行加工
+       *
+       * 注：HttpHeadersFilter 是从BeanFactory中获取的，所以我们可以自定义 HttpHeadersFilter 达到扩展的目的
+       * */
+      HttpHeaders filtered = filterRequest(getHeadersFilters(), exchange);
+
+      List<String> protocols = getProtocols(headers);
+
+      // 使用 webSocketService 执行请求。且不在执行后续的filter
+      return this.webSocketService.handleRequest(exchange,
+            new ProxyWebSocketHandler(requestUrl, this.webSocketClient, filtered, protocols));
+   }
+}
+```
+
+
+
+## Gateway 处理请求流程
+
+# 开发者指南
+
+这些是编写网关的一些自定义组件的基本指南。
+
+
+
+为了编写路由谓词，您需要将 RoutePredicateFactory 实现为一个 bean。有一个名为 AbstractRoutePredicateFactory 的抽象类，您可以对其进行扩展。
+
+要编写 GatewayFilter ，您必须将 GatewayFilterFactory 实现为一个 bean。您可以扩展名为 AbstractGatewayFilterFactory 的抽象类。以下示例显示了如何执行此操作：
+
+自定义过滤器类名称应以 GatewayFilterFactory 结尾。
+例如，要在配置文件中引用名为 Something 的过滤器，该过滤器必须位于名为 SomethingGatewayFilterFactory 的类中
+可以创建一个没有 GatewayFilterFactory 后缀命名的网关过滤器，例如 class AnotherThing 。这个过滤器可以在配置文件中被引用为 AnotherThing 。这不是受支持的命名约定，在未来的版本中可能会删除此语法。请更新过滤器名称以符合要求。
+
+要编写自定义全局过滤器，您必须将 GlobalFilter 接口实现为 bean。这会将过滤器应用于所有请求。
+
+```yml
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: route_id
+          uri: http://localhost:8080
+          predicates:
+            - Haitao
+          filters:
+            - LogQueryParams
+```
+
+```java
+@Component
+public class MyGlobalFilter {
+
+    @Component
+    public static class HaitaoRoutePredicateFactory implements RoutePredicateFactory<Config> {
+        @Override
+        public Predicate<ServerWebExchange> apply(Config config) {
+            return exchange -> true;
+        }
+    }
+
+    @Component
+    public static class LogGatewayFilterFactory implements GatewayFilterFactory<Config> {
+        @Override
+        public GatewayFilter apply(Config config) {
+            System.out.println("LogGatewayFilterFactory...");
+            return (exchange, chain) -> chain.filter(exchange);
+        }
+    }
+
+    @Component
+    public static class LogQueryParamsGlobalFilter implements GlobalFilter {
+        @Override
+        public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+            System.out.println(exchange.getRequest().getQueryParams());
+            return chain.filter(exchange);
+        }
+    }
+
+    public static class Config {    }
+}
+```
+
+
 
 # 定义的 Endpoint
 

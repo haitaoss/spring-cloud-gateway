@@ -101,6 +101,10 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 		return headersFilters;
 	}
 
+	/**
+	 * 最大值，说明这是最后要执行的 GatewayFilter
+	 * @return
+	 */
 	@Override
 	public int getOrder() {
 		return ORDER;
@@ -112,7 +116,7 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 		URI requestUrl = exchange.getRequiredAttribute(GATEWAY_REQUEST_URL_ATTR);
 
 		String scheme = requestUrl.getScheme();
-		// 已经路由 或者 不是 http、https 就放心
+		// 已经路由 或者 不是 http、https 就放行
 		if (isAlreadyRouted(exchange) || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
 			return chain.filter(exchange);
 		}
@@ -124,6 +128,12 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 		final HttpMethod method = HttpMethod.valueOf(request.getMethodValue());
 		final String url = requestUrl.toASCIIString();
 
+		/**
+		 * 遍历执行所有的 HttpHeadersFilter 得到 HttpHeaders。
+		 * 也就是说可以对最终要执行的 请求头 进行加工
+		 *
+		 * 注：HttpHeadersFilter 是从BeanFactory中获取的，所以我们可以自定义 HttpHeadersFilter 达到扩展的目的
+		 * */
 		HttpHeaders filtered = filterRequest(getHeadersFilters(), exchange);
 
 		final DefaultHttpHeaders httpHeaders = new DefaultHttpHeaders();
@@ -132,6 +142,7 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 		boolean preserveHost = exchange.getAttributeOrDefault(PRESERVE_HOST_HEADER_ATTRIBUTE, false);
 		Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
 
+		// 根据 Route 的元数据构造 HttpClient 然后执行请求
 		Flux<HttpClientResponse> responseFlux = getHttpClient(route, exchange).headers(headers -> {
 			headers.add(httpHeaders);
 			// Will either be set below, or later by Netty
@@ -167,6 +178,10 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 
 			setResponseStatus(res, response);
 
+			/**
+			 * 遍历执行所有的 HttpHeadersFilter 得到 HttpHeaders。
+			 * 也就是说可以对 响应头 进行加工
+			 * */
 			// make sure headers filters run after setting status so it is
 			// available in response
 			HttpHeaders filteredResponseHeaders = HttpHeadersFilter.filter(getHeadersFilters(), headers, exchange,
@@ -197,6 +212,7 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 							th -> new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, th.getMessage(), th));
 		}
 
+		// 放行
 		return responseFlux.then(chain.filter(exchange));
 	}
 

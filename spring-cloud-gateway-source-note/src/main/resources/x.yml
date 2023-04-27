@@ -1,0 +1,10 @@
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: weight_high
+          uri: http://localhost:8080
+          predicates:
+            - Haitao
+          filters:
+            - LogQueryParams

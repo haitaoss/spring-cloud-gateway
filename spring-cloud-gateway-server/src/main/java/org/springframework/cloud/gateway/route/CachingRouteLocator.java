@@ -54,10 +54,12 @@ public class CachingRouteLocator
 
 	public CachingRouteLocator(RouteLocator delegate) {
 		this.delegate = delegate;
+		// 使用 ConcurrentHashMap 缓存 Route
 		routes = CacheFlux.lookup(cache, CACHE_KEY, Route.class).onCacheMissResume(this::fetch);
 	}
 
 	private Flux<Route> fetch() {
+		// 会对 Route 进行排序
 		return this.delegate.getRoutes().sort(AnnotationAwareOrderComparator.INSTANCE);
 	}
 
@@ -78,9 +80,12 @@ public class CachingRouteLocator
 	@Override
 	public void onApplicationEvent(RefreshRoutesEvent event) {
 		try {
+			// 收到事件，就执行 fetch() 也就是会会重新解析得到 List<Route>
 			fetch().collect(Collectors.toList()).subscribe(
 					list -> Flux.fromIterable(list).materialize().collect(Collectors.toList()).subscribe(signals -> {
+						// 发布 RefreshRoutesResultEvent 事件
 						applicationEventPublisher.publishEvent(new RefreshRoutesResultEvent(this));
+						// 重新设置缓存内容
 						cache.put(CACHE_KEY, signals);
 					}, this::handleRefreshError), this::handleRefreshError);
 		}

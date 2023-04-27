@@ -1,0 +1,22 @@
+spring:
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          # 启用通过 DiscoveryClient 记录的 ServiceInstance 自动映射成 Route
+          enabled: true
+          # 下面的内容都是 Spel 表达式，解析的根对象是 ServiceInstance
+          urlExpression: "'lb://'+serviceId"
+          predicates:
+            - Path='/'+serviceId+'/**'
+          filters:
+            - RewritePath='/' + serviceId + '/?(?<remaining>.*)', '/${remaining}'
+    discovery:
+      client:
+        simple:
+          instances:
+            s1:
+              # 指定 serviceId 是没用会被改写成 s1，看 SimpleDiscoveryProperties.init() 就知道了
+              - serviceId: haitao
+                uri: http://localhost:8080
+              - uri: http://127.0.0.1:8080

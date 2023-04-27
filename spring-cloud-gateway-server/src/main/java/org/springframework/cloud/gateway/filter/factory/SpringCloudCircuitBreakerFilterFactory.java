@@ -85,7 +85,7 @@ public abstract class SpringCloudCircuitBreakerFilterFactory
 	public GatewayFilter apply(Config config) {
 		// 得到 ReactiveCircuitBreaker
 		ReactiveCircuitBreaker cb = reactiveCircuitBreakerFactory.create(config.getId());
-		// 拿到配置的状态码
+		// 根据配置的状态码 映射成 HttpStatus 对象
 		Set<HttpStatus> statuses = config.getStatusCodes().stream().map(HttpStatusHolder::parse)
 				.filter(statusHolder -> statusHolder.getHttpStatus() != null).map(HttpStatusHolder::getHttpStatus)
 				.collect(Collectors.toSet());
@@ -115,6 +115,7 @@ public abstract class SpringCloudCircuitBreakerFilterFactory
 					URI uri = exchange.getRequest().getURI();
 					// TODO: assume always?
 					boolean encoded = containsEncodedParts(uri);
+					// 根据 config.getFallbackUri() 重新构造出 Url
 					URI requestUrl = UriComponentsBuilder.fromUri(uri).host(null).port(null)
 							.uri(config.getFallbackUri()).scheme(null).build(encoded).toUri();
 					exchange.getAttributes().put(GATEWAY_REQUEST_URL_ATTR, requestUrl);
@@ -125,7 +126,9 @@ public abstract class SpringCloudCircuitBreakerFilterFactory
 					reset(exchange);
 
 					ServerHttpRequest request = exchange.getRequest().mutate().uri(requestUrl).build();
-					// 使用 getDispatcherHandler 处理。可以理解成系统内的转发
+					/**
+					 * 直接使用 DispatcherHandler 处理。可以理解成使用 fallbackUrl 重新执行一次请求
+					 * */
 					return getDispatcherHandler().handle(exchange.mutate().request(request).build());
 				}).onErrorResume(t -> handleErrorWithoutFallback(t, config.isResumeWithoutError()));
 			}

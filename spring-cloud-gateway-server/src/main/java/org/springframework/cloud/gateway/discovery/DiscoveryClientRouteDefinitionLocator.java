@@ -101,15 +101,17 @@ public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLoc
 			};
 		}
 
-		// 遍历 DiscoveryClient 拿到的 instance
-		return serviceInstances.filter(instances -> !instances.isEmpty()).flatMap(Flux::fromIterable)
+		// 遍历 DiscoveryClient 拿到的 List<ServiceInstance>
+		return serviceInstances.filter(instances -> !instances.isEmpty())
+				// 铺平
+				.flatMap(Flux::fromIterable)
 				// 使用配置的 includeExpr 过滤
 				.filter(includePredicate)
-				// 过滤出 serviceId 不是空的
+				// 按照 ServiceId 收集成 Map
 				.collectMap(ServiceInstance::getServiceId)
 				// remove duplicates
 				.flatMapMany(map -> Flux.fromIterable(map.values()))
-				// 映射成 RouteDefinition
+				// 映射成 RouteDefinition，所以会出现 相同的 routeId
 				.map(instance -> {
 					// 会使用 urlExpr 进行 spel 的解析 得到路由的 uri
 					RouteDefinition routeDefinition = buildRouteDefinition(urlExpr, instance);
@@ -146,7 +148,9 @@ public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLoc
 	protected RouteDefinition buildRouteDefinition(Expression urlExpr, ServiceInstance serviceInstance) {
 		String serviceId = serviceInstance.getServiceId();
 		RouteDefinition routeDefinition = new RouteDefinition();
+		// routeId 就是 serviceId
 		routeDefinition.setId(this.routeIdPrefix + serviceId);
+		// url 进行 spel 的解析
 		String uri = urlExpr.getValue(this.evalCtxt, serviceInstance, String.class);
 		routeDefinition.setUri(URI.create(uri));
 		// add instance metadata

@@ -9,10 +9,31 @@ spring:
         # 配置为在响应的标头中返回来自代理请求的原始 HTTP 状态代码。如果配置了以下属性，则标头将添加到响应中
         original-status-header-name: original-http-status
       routes:
+        # id 是可重复的，但是为了好区分，还是搞不一样的比较好
         - id: add_request_header_route
           uri: lb://backing-service:8088
+          # 看不出有啥用，直接看源码就知道了 AfterRoutePredicateFactory
           predicates:
-            - Path=/red/{segment}
+            - After=2017-01-20T17:42:47.789-07:00[America/Denver]
+            - Before=2017-01-20T17:42:47.789-07:00[America/Denver]
+            - Between=2017-01-20T17:42:47.789-07:00[America/Denver], 2017-01-21T17:42:47.789-07:00[America/Denver]
+            # cookie chocolate 的值 满足正则表达式
+            - Cookie=chocolate, ch.p
+            - Header=X-Request-Id, \d+
+            # 请求头 Host 满足
+            - Host=**.somehost.org,**.anotherhost.org
+            - Method=GET,POST
+            - Path=/red/{segment},/blue/{segment}
+            # 包含查询参数 red 且其值符合正则表达式
+            # - Query=red, gree.
+            # 包含查询参数 即可
+            - Query=red
+            # 如果请求的远程地址是 192.168.1.10 ，则此路由匹配。
+            - RemoteAddr=192.168.1.1/24
+            # 如果 X-Forwarded-For 标头包含 192.168.1.10 ，则此路由匹配
+            - XForwardedRemoteAddr=192.168.1.1/24
+            # 按照权重
+            - Weight=group1, 2
           filters:
             # 增加请求头
             - AddRequestHeader=X-Request-Red, Blue-{segment}
@@ -68,8 +89,23 @@ spring:
             - name: CacheRequestBody
               args:
                 bodyClass: java.lang.String
-        - id: prefixpath_route
-          uri: https://example.org
-          filters:
             # 重定向
             - RedirectTo=302, https://acme.org
+            # 重试
+            - Retry=3,INTERNAL_SERVER_ERROR,GET,10ms,50ms,2,false
+            - name: Retry
+              args:
+                retries: 3
+                statuses: INTERNAL_SERVER_ERROR
+                methods: GET
+                backoff:
+                  firstBackoff: 10ms
+                  maxBackoff: 50ms
+                  factor: 2
+                  basedOnPreviousValue: false
+          # 路由的元数据
+          metadata:
+            optionName: "OptionValue"
+            compositeObject:
+              name: "value"
+            iAmNumber: 1

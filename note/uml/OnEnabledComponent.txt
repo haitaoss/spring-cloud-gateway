@@ -1,0 +1,61 @@
+@startuml
+
+!theme plain
+top to bottom direction
+skinparam linetype ortho
+
+interface Condition << interface >> {
+  + matches(ConditionContext, AnnotatedTypeMetadata): boolean
+}
+interface ConfigurationCondition << interface >> {
+  + getConfigurationPhase(): ConfigurationPhase
+}
+annotation FunctionalInterface << annotation >>
+class OnEnabledComponent<T> {
+  - SUFFIX: String
+  - PREFIX: String
+  + getMatchOutcome(ConditionContext, AnnotatedTypeMetadata): ConditionOutcome
+  # normalizeComponentName(Class<T>): String
+  # getComponentType(Class<?>, ConditionContext, AnnotatedTypeMetadata): Class<T>
+  # defaultValueClass(): Class<T>
+  + getConfigurationPhase(): ConfigurationPhase
+  # annotationClass(): Class<?>
+  - determineOutcome(Class<T>, PropertyResolver): ConditionOutcome
+}
+class OnEnabledFilter {
+  # normalizeComponentName(Class<GatewayFilterFactory<?>>): String
+  # annotationClass(): Class<?>
+  # defaultValueClass(): Class<GatewayFilterFactory<?>>
+}
+class OnEnabledGlobalFilter {
+  # annotationClass(): Class<?>
+  # normalizeComponentName(Class<GlobalFilter>): String
+  # defaultValueClass(): Class<GlobalFilter>
+}
+class OnEnabledPredicate {
+  # defaultValueClass(): Class<RoutePredicateFactory<?>>
+  # annotationClass(): Class<?>
+  # normalizeComponentName(Class<RoutePredicateFactory<?>>): String
+}
+class SpringBootCondition {
+  - logger: Log
+  - getName(AnnotatedTypeMetadata): String
+  - getClassOrMethodName(AnnotatedTypeMetadata): String
+  + getMatchOutcome(ConditionContext, AnnotatedTypeMetadata): ConditionOutcome
+  # logOutcome(String?, ConditionOutcome): void
+  + matches(ConditionContext, AnnotatedTypeMetadata): boolean
+  # anyMatches(ConditionContext, AnnotatedTypeMetadata, Condition[]): boolean
+  - recordEvaluation(ConditionContext, String, ConditionOutcome): void
+  - getLogMessage(String?, ConditionOutcome): StringBuilder
+  # matches(ConditionContext, AnnotatedTypeMetadata, Condition): boolean
+}
+
+Condition               -[#999900,dotted]-  FunctionalInterface
+ConfigurationCondition  -[#008200,plain]-^  Condition
+OnEnabledComponent      -[#008200,dashed]-^  ConfigurationCondition
+OnEnabledComponent      -[#000082,plain]-^  SpringBootCondition
+OnEnabledFilter         -[#000082,plain]-^  OnEnabledComponent
+OnEnabledGlobalFilter   -[#000082,plain]-^  OnEnabledComponent
+OnEnabledPredicate      -[#000082,plain]-^  OnEnabledComponent
+SpringBootCondition     -[#008200,dashed]-^  Condition
+@enduml

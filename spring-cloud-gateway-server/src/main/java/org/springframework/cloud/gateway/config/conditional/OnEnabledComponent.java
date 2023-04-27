@@ -45,7 +45,17 @@ public abstract class OnEnabledComponent<T> extends SpringBootCondition implemen
 
 	@Override
 	public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata metadata) {
+		/**
+		 * 拿到类。
+		 *
+		 * 若注解的 value 不是默认值就返回value值,否则就拿到方法的返回值类型。
+		 * */
 		Class<? extends T> candidate = getComponentType(annotationClass(), context, metadata);
+		/**
+		 * 确定匹配结果
+		 *
+		 * 前缀 + 处理类名的值 + 后缀 作为key，从 Environment 获取值，值是false则不匹配，否则匹配
+		 * */
 		return determineOutcome(candidate, context.getEnvironment());
 	}
 
@@ -55,14 +65,17 @@ public abstract class OnEnabledComponent<T> extends SpringBootCondition implemen
 		Map<String, Object> attributes = metadata.getAnnotationAttributes(annotationClass.getName());
 		if (attributes != null && attributes.containsKey("value")) {
 			Class<?> target = (Class<?>) attributes.get("value");
+			// 注解的 value 属性，不是默认值，就返回
 			if (target != defaultValueClass()) {
 				return (Class<? extends T>) target;
 			}
 		}
+		// 必须得有 @Bean 注解
 		Assert.state(metadata instanceof MethodMetadata && metadata.isAnnotated(Bean.class.getName()),
 				getClass().getSimpleName() + " must be used on @Bean methods when the value is not specified");
 		MethodMetadata methodMetadata = (MethodMetadata) metadata;
 		try {
+			// 拿到方法的返回值作为 类型
 			return (Class<? extends T>) ClassUtils.forName(methodMetadata.getReturnTypeName(),
 					context.getClassLoader());
 		}
@@ -73,11 +86,14 @@ public abstract class OnEnabledComponent<T> extends SpringBootCondition implemen
 	}
 
 	private ConditionOutcome determineOutcome(Class<? extends T> componentClass, PropertyResolver resolver) {
+		// 拼接上前缀和后缀 作为key
 		String key = PREFIX + normalizeComponentName(componentClass) + SUFFIX;
 		ConditionMessage.Builder messageBuilder = forCondition(annotationClass().getName(), componentClass.getName());
+		// 属性值是 false 就是不匹配
 		if ("false".equalsIgnoreCase(resolver.getProperty(key))) {
 			return ConditionOutcome.noMatch(messageBuilder.because("bean is not available"));
 		}
+		// 匹配
 		return ConditionOutcome.match();
 	}
 

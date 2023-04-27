@@ -90,21 +90,31 @@ public class WebsocketRoutingFilter implements GlobalFilter, Ordered {
 
 	@Override
 	public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+		// 有请求头 upgrade=WebSocket ，那就将 http、https 转成 ws、wss 协议
 		changeSchemeIfIsWebSocketUpgrade(exchange);
 
 		URI requestUrl = exchange.getRequiredAttribute(GATEWAY_REQUEST_URL_ATTR);
 		String scheme = requestUrl.getScheme();
 
+		// 已经路由过 或者 不是 ws、wss 协议 就放行
 		if (isAlreadyRouted(exchange) || (!"ws".equals(scheme) && !"wss".equals(scheme))) {
 			return chain.filter(exchange);
 		}
+		// 标记路由了
 		setAlreadyRouted(exchange);
 
 		HttpHeaders headers = exchange.getRequest().getHeaders();
+		/**
+		 * 遍历执行所有的 HttpHeadersFilter 得到 HttpHeaders。
+		 * 也就是说可以对最终要执行的 请求头 进行加工
+		 *
+		 * 注：HttpHeadersFilter 是从BeanFactory中获取的，所以我们可以自定义 HttpHeadersFilter 达到扩展的目的
+		 * */
 		HttpHeaders filtered = filterRequest(getHeadersFilters(), exchange);
 
 		List<String> protocols = getProtocols(headers);
 
+		// 使用 webSocketService 执行请求。且不在执行后续的filter
 		return this.webSocketService.handleRequest(exchange,
 				new ProxyWebSocketHandler(requestUrl, this.webSocketClient, filtered, protocols));
 	}
@@ -158,11 +168,14 @@ public class WebsocketRoutingFilter implements GlobalFilter, Ordered {
 		URI requestUrl = exchange.getRequiredAttribute(GATEWAY_REQUEST_URL_ATTR);
 		String scheme = requestUrl.getScheme().toLowerCase();
 		String upgrade = exchange.getRequest().getHeaders().getUpgrade();
+		// 有请求头 upgrade=WebSocket ，那就转成 ws 协议
 		// change the scheme if the socket client send a "http" or "https"
 		if ("WebSocket".equalsIgnoreCase(upgrade) && ("http".equals(scheme) || "https".equals(scheme))) {
+			// 转成 ws、wss 协议
 			String wsScheme = convertHttpToWs(scheme);
 			boolean encoded = containsEncodedParts(requestUrl);
 			URI wsRequestUrl = UriComponentsBuilder.fromUri(requestUrl).scheme(wsScheme).build(encoded).toUri();
+			// 设置回 exchange 中
 			exchange.getAttributes().put(GATEWAY_REQUEST_URL_ATTR, wsRequestUrl);
 			if (log.isTraceEnabled()) {
 				log.trace("changeSchemeTo:[" + wsRequestUrl + "]");

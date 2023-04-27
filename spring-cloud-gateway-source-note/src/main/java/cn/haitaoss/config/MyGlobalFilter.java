@@ -5,6 +5,8 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.cloud.gateway.filter.OrderedGatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
+import org.springframework.cloud.gateway.filter.factory.GatewayFilterFactory;
+import org.springframework.cloud.gateway.handler.predicate.RoutePredicateFactory;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
@@ -18,6 +20,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * @author haitao.chen
@@ -48,7 +51,7 @@ public class MyGlobalFilter {
         }
     }
 
-    @Bean
+    // @Bean
     public RouteLocator routes(RouteLocatorBuilder builder) {
         return builder.routes()
                 .route("circuitbreaker_route", predicateSpec -> predicateSpec
@@ -64,7 +67,7 @@ public class MyGlobalFilter {
                 .build();
     }
 
-    @Bean
+    // @Bean
     public RouteLocator remoteAddress(RouteLocatorBuilder builder) {
         return builder.routes()
                 .route("id", predicateSpec -> predicateSpec
@@ -75,7 +78,7 @@ public class MyGlobalFilter {
                         .uri("")).build();
     }
 
-    @Bean
+    // @Bean
     public GlobalFilter customGlobalPostFilter() {
         return (exchange, chain) -> chain.filter(exchange)
                 .then(Mono.just(exchange))
@@ -109,12 +112,42 @@ public class MyGlobalFilter {
                         map.put("routeId", exchange.getAttributeOrDefault(
                                 ServerWebExchangeUtils.GATEWAY_PREDICATE_MATCHED_PATH_ROUTE_ID_ATTR, "empty"));
                         ServerWebExchangeUtils.putUriTemplateVariables(exchange, map);
-
                         return chain.filter(exchange);
                     }
                 };
                 return new OrderedGatewayFilter(gatewayFilter, -1);
             }
         };
+    }
+
+
+    @Component
+    public static class HaitaoRoutePredicateFactory implements RoutePredicateFactory<Config> {
+        @Override
+        public Predicate<ServerWebExchange> apply(Config config) {
+            return exchange -> true;
+        }
+    }
+
+    @Component
+    public static class LogGatewayFilterFactory implements GatewayFilterFactory<Config> {
+
+        @Override
+        public GatewayFilter apply(Config config) {
+            System.out.println("LogGatewayFilterFactory...");
+            return (exchange, chain) -> chain.filter(exchange);
+        }
+    }
+
+    @Component
+    public static class LogQueryParamsGlobalFilter implements GlobalFilter {
+        @Override
+        public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+            System.out.println(exchange.getRequest().getQueryParams());
+            return chain.filter(exchange);
+        }
+    }
+
+    public static class Config {
     }
 }
