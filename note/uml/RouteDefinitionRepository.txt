@@ -1,0 +1,36 @@
+@startuml
+
+!theme plain
+top to bottom direction
+skinparam linetype ortho
+
+class InMemoryRouteDefinitionRepository {
+  - routes: Map<String, RouteDefinition>
+  + save(Mono<RouteDefinition>): Mono<Void>
+  + delete(Mono<String>): Mono<Void>
+  + getRouteDefinitions(): Flux<RouteDefinition>
+}
+class RedisRouteDefinitionRepository {
+  - routeDefinitionReactiveValueOperations: ReactiveValueOperations<String, RouteDefinition>
+  - reactiveRedisTemplate: ReactiveRedisTemplate<String, RouteDefinition>
+  - log: Logger
+  - ROUTEDEFINITION_REDIS_KEY_PREFIX_QUERY: String
+  + getRouteDefinitions(): Flux<RouteDefinition>
+  + save(Mono<RouteDefinition>): Mono<Void>
+  - createKey(String): String
+  + delete(Mono<String>): Mono<Void>
+}
+interface RouteDefinitionLocator << interface >> {
+  + getRouteDefinitions(): Flux<RouteDefinition>
+}
+interface RouteDefinitionRepository << interface >>
+interface RouteDefinitionWriter << interface >> {
+  + save(Mono<RouteDefinition>): Mono<Void>
+  + delete(Mono<String>): Mono<Void>
+}
+
+InMemoryRouteDefinitionRepository  -[#008200,dashed]-^  RouteDefinitionRepository
+RedisRouteDefinitionRepository     -[#008200,dashed]-^  RouteDefinitionRepository
+RouteDefinitionRepository          -[#008200,plain]-^  RouteDefinitionLocator
+RouteDefinitionRepository          -[#008200,plain]-^  RouteDefinitionWriter
+@enduml

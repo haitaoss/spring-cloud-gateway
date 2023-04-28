@@ -35,3 +35,23 @@ spring:
                 fallbackUri: /index
 #                fallbackUri: http://localhost:8080/s1/index
 #                fallbackUri: forward:/index
+
+        - id: weight_high
+          uri: http://localhost:8080
+          predicates:
+            - Path=/weight/**
+            # - Weight=group1, 8
+            - name: Weight
+              args:
+                weight.group: group1
+                weight.weight: 8
+          filters:
+            - RewritePath=/weight/?(?<segment>.*), /index
+
+        - id: weight_low
+          uri: http://localhost:8080
+          predicates:
+            - Path=/weight/**
+            - Weight=group1, 2
+          filters:
+            - RewritePath=/weight/?(?<segment>.*), /index

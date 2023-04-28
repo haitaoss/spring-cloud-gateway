@@ -18,6 +18,8 @@ package org.springframework.cloud.gateway.handler;
 
 import java.util.function.Function;
 
+import org.springframework.context.ApplicationContext;
+import org.springframework.web.reactive.DispatcherHandler;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -57,7 +59,12 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 
 		this.managementPort = getPortProperty(environment, "management.server.");
 		this.managementPortType = getManagementPortType(environment);
+		/**
+		 * 获取属性作为 order 值，默认是1。从而决定是 DispatcherHandler 使用的第几个 HandlerMapping，
+		 * 因为 HandlerMapping 的特点是能处理就使用，不在使用其他的 HandlerMapping，所以优先级是很重要的。
+		 * */
 		setOrder(environment.getProperty(GatewayProperties.PREFIX + ".handler-mapping.order", Integer.class, 1));
+		// 设置同源配置信息
 		setCorsConfigurations(globalCorsProperties.getCorsConfigurations());
 	}
 
@@ -85,7 +92,7 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 		exchange.getAttributes().put(GATEWAY_HANDLER_MAPPER_ATTR, getSimpleName());
 
 		/**
-		 * 得到 List<Route>，遍历，根据 Route 的 Predicate 决定是否匹配，返回第一个匹配的Route
+		 * 使用 routeLocator 得到 List<Route> 遍历，根据 Route 的 Predicate 决定是否匹配，返回第一个匹配的Route
 		 * */
 		return lookupRoute(exchange)
 				// .log("route-predicate-handler-mapping", Level.FINER) //name this
@@ -103,7 +110,7 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 					 * */
 					exchange.getAttributes().put(GATEWAY_ROUTE_ATTR, r);
 					/**
-					 * 会有 SimpleHandlerAdapter 处理
+					 * 会由 SimpleHandlerAdapter 处理
 					 * */
 					return Mono.just(webHandler);
 				}).switchIfEmpty(Mono.empty().then(Mono.fromRunnable(() -> {
@@ -158,7 +165,7 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 						// swallow it
 						.doOnError(e -> logger.error("Error applying predicate for route: " + route.getId(), e))
 						.onErrorResume(e -> Mono.empty()))
-				// 拿到第一个
+				// 拿到第一个。所以 Route 的顺序会决定最终的方法的执行
 				// .defaultIfEmpty() put a static Route not found
 				// or .switchIfEmpty()
 				// .switchIfEmpty(Mono.<Route>empty().log("noroute"))

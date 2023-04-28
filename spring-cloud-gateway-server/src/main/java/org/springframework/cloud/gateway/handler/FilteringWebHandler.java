@@ -52,11 +52,13 @@ public class FilteringWebHandler implements WebHandler {
 	private final List<GatewayFilter> globalFilters;
 
 	public FilteringWebHandler(List<GlobalFilter> globalFilters) {
+		// 这是依赖注入得到的
 		this.globalFilters = loadFilters(globalFilters);
 	}
 
 	private static List<GatewayFilter> loadFilters(List<GlobalFilter> filters) {
 		return filters.stream().map(filter -> {
+			// 装饰成 GatewayFilter 类型
 			GatewayFilterAdapter gatewayFilter = new GatewayFilterAdapter(filter);
 			if (filter instanceof Ordered) {
 				int order = ((Ordered) filter).getOrder();
@@ -94,7 +96,11 @@ public class FilteringWebHandler implements WebHandler {
 			logger.debug("Sorted gatewayFilterFactories: " + combined);
 		}
 
-		// 将流程委托给 filter 执行
+		/**
+		 * 装饰成 DefaultGatewayFilterChain 执行。
+		 *
+		 * 其实就是遍历执行所有的 GatewayFilter
+		 * */
 		return new DefaultGatewayFilterChain(combined).filter(exchange);
 	}
 
@@ -123,7 +129,9 @@ public class FilteringWebHandler implements WebHandler {
 			return Mono.defer(() -> {
 				if (this.index < filters.size()) {
 					GatewayFilter filter = filters.get(this.index);
+					// 套娃行为
 					DefaultGatewayFilterChain chain = new DefaultGatewayFilterChain(this, this.index + 1);
+					// 执行
 					return filter.filter(exchange, chain);
 				}
 				else {

@@ -1,0 +1,50 @@
+@startuml
+
+!theme plain
+top to bottom direction
+skinparam linetype ortho
+
+class AbstractGatewayControllerEndpoint {
+  - log: Log
+  # routeLocator: RouteLocator
+  # publisher: ApplicationEventPublisher
+  # routeDefinitionLocator: RouteDefinitionLocator
+  # routeDefinitionWriter: RouteDefinitionWriter
+  # globalFilters: List<GlobalFilter>
+  # routePredicates: List<RoutePredicateFactory>
+  # GatewayFilters: List<GatewayFilterFactory>
+  + delete(String): Mono<ResponseEntity<Object>>
+  + combinedfilters(String): Mono<HashMap<String, Object>>
+  - putItem(HashMap<String, Object>, Object): HashMap<String, Object>
+  + save(String, RouteDefinition): Mono<ResponseEntity<Object>>
+  - isAvailable(FilterDefinition): boolean
+  + routefilers(): Mono<HashMap<String, Object>>
+  - validateRouteDefinition(RouteDefinition): void
+  - handleUnavailableDefinition(String, Set<String>): void
+  + setApplicationEventPublisher(ApplicationEventPublisher): void
+  + refresh(): Mono<Void>
+  + globalfilters(): Mono<HashMap<String, Object>>
+  - getNamesToOrders(List<T>): Mono<HashMap<String, Object>>
+  - isAvailable(PredicateDefinition): boolean
+  + routepredicates(): Mono<HashMap<String, Object>>
+}
+interface ApplicationEventPublisherAware << interface >> {
+  + setApplicationEventPublisher(ApplicationEventPublisher): void
+}
+interface Aware << interface >>
+class GatewayControllerEndpoint {
+  + routesdef(): Flux<RouteDefinition>
+  + route(String): Mono<ResponseEntity<Map<String, Object>>>
+  ~ serialize(Route): Map<String, Object>
+  + routes(): Flux<Map<String, Object>>
+}
+class GatewayLegacyControllerEndpoint {
+  + route(String): Mono<ResponseEntity<RouteDefinition>>
+  + routes(): Mono<List<Map<String, Object>>>
+}
+
+AbstractGatewayControllerEndpoint  -[#008200,dashed]-^  ApplicationEventPublisherAware
+ApplicationEventPublisherAware     -[#008200,plain]-^  Aware
+GatewayControllerEndpoint          -[#000082,plain]-^  AbstractGatewayControllerEndpoint
+GatewayLegacyControllerEndpoint    -[#000082,plain]-^  AbstractGatewayControllerEndpoint
+@enduml

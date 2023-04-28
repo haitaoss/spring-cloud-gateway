@@ -16,7 +16,10 @@
 
 package org.springframework.cloud.gateway.route;
 
+import org.springframework.cloud.gateway.config.GatewayAutoConfiguration;
 import reactor.core.publisher.Flux;
+
+import java.util.List;
 
 /**
  * @author Spencer Gibb
@@ -26,11 +29,17 @@ public class CompositeRouteLocator implements RouteLocator {
     private final Flux<RouteLocator> delegates;
 
     public CompositeRouteLocator(Flux<RouteLocator> delegates) {
+        /**
+         * 通过依赖注入拿到容器中所有的 RouteLocator。
+         *
+         * 看 {@link GatewayAutoConfiguration#cachedCompositeRouteLocator(List)}
+         * */
         this.delegates = delegates;
     }
 
     @Override
     public Flux<Route> getRoutes() {
+        // 迭代 delegates 执行 RouteLocator::getRoutes ，然后把结果铺平成 Flux<Route>
         return this.delegates.flatMapSequential(RouteLocator::getRoutes);
     }
 

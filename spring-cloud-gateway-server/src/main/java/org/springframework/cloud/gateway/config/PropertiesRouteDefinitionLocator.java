@@ -29,11 +29,18 @@ public class PropertiesRouteDefinitionLocator implements RouteDefinitionLocator 
 	private final GatewayProperties properties;
 
 	public PropertiesRouteDefinitionLocator(GatewayProperties properties) {
+		/**
+		 * 依赖注入得到的
+		 *
+		 * GatewayProperties 标注了 @ConfigurationProperties("spring.cloud.gateway")
+		 * 所以会通过属性绑定设置值
+		 * */
 		this.properties = properties;
 	}
 
 	@Override
 	public Flux<RouteDefinition> getRouteDefinitions() {
+		// 直接返回 properties.getRoutes()
 		return Flux.fromIterable(this.properties.getRoutes());
 	}
 

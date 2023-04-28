@@ -62,17 +62,31 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 
 	private final GatewayProperties gatewayProperties;
 
+	/**
+	 * 通过依赖注入得到
+	 * @param routeDefinitionLocator
+	 * @param predicates
+	 * @param gatewayFilterFactories
+	 * @param gatewayProperties
+	 * @param configurationService
+	 */
 	public RouteDefinitionRouteLocator(RouteDefinitionLocator routeDefinitionLocator,
 			List<RoutePredicateFactory> predicates, List<GatewayFilterFactory> gatewayFilterFactories,
 			GatewayProperties gatewayProperties, ConfigurationService configurationService) {
 		this.routeDefinitionLocator = routeDefinitionLocator;
 		this.configurationService = configurationService;
 		/**
-		 * 将 List 转成 Map，默认的key是类名取出RoutePredicateFactory
+		 * 将 List 转成 Map，key 是执行 {@link RoutePredicateFactory#name()} 得到的。
+		 * 默认的逻辑是 类名去除 RoutePredicateFactory
 		 * 比如 AddHeadRoutePredicateFactory 的key是 AddHead
-		 * 		{@link GatewayFilterFactory#name()}
 		 * */
 		initFactories(predicates);
+		/**
+		 *
+		 * 逻辑同上 {@link GatewayFilterFactory#name()}
+		 * 默认的逻辑是 类名去除 GatewayFilterFactory
+		 * 比如 AddRequestHeaderGatewayFilterFactory 的key是 AddRequestHeader
+		 * */
 		gatewayFilterFactories.forEach(factory -> this.gatewayFilterFactories.put(factory.name(), factory));
 		this.gatewayProperties = gatewayProperties;
 	}
@@ -93,6 +107,9 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 
 	@Override
 	public Flux<Route> getRoutes() {
+		/**
+		 * 通过 RouteDefinitionLocator 得到 RouteDefinition ，然后根据 RouteDefinition 转成 Route
+		 * */
 		Flux<Route> routes = this.routeDefinitionLocator.getRouteDefinitions().map(this::convertToRoute);
 
 		if (!gatewayProperties.isFailOnRouteDefinitionError()) {
@@ -115,9 +132,16 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 
 	private Route convertToRoute(RouteDefinition routeDefinition) {
 		/**
-		 *
+		 * 会根据定义 predicates 的顺序，遍历处理。根据 predicate.getName() 找到 RoutePredicateFactory，
+		 * 再使用 factory 生成 AsyncPredicate
 		 * */
 		AsyncPredicate<ServerWebExchange> predicate = combinePredicates(routeDefinition);
+		/**
+		 * 先处理通过属性定义的 默认Filter（spring.cloud.gateway.defaultFilters），再根据定义 filters 的顺序，遍历处理。根据 filter.getName() 找到 GatewayFilterFactory，
+		 * 再使用 factory 生成 GatewayFilter
+		 *
+		 * 最后会根据 order 进行排序。
+		 * */
 		List<GatewayFilter> gatewayFilters = getFilters(routeDefinition);
 
 		// 构造出 Route
@@ -129,6 +153,7 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 		ArrayList<GatewayFilter> ordered = new ArrayList<>(filterDefinitions.size());
 		for (int i = 0; i < filterDefinitions.size(); i++) {
 			FilterDefinition definition = filterDefinitions.get(i);
+			// 根据 definition.getName() 拿到 GatewayFilterFactory
 			GatewayFilterFactory factory = this.gatewayFilterFactories.get(definition.getName());
 			if (factory == null) {
 				throw new IllegalArgumentException(
@@ -139,6 +164,12 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 						+ definition.getName());
 			}
 
+			/**
+			 * 使用 configurationService 生成 configuration
+			 *
+			 * 和这个是类似的，看这里就知道了
+			 * 		{@link RouteDefinitionRouteLocator#lookup(RouteDefinition, PredicateDefinition)}
+			 * */
 			// @formatter:off
 			Object configuration = this.configurationService.with(factory)
 					.name(definition.getName())
@@ -153,14 +184,17 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 			// TODO: is there a better place to apply this?
 			if (configuration instanceof HasRouteId) {
 				HasRouteId hasRouteId = (HasRouteId) configuration;
+				// 设置 routeId
 				hasRouteId.setRouteId(id);
 			}
 
+			// factory 根据 configuration 生成 GatewayFilter
 			GatewayFilter gatewayFilter = factory.apply(configuration);
 			if (gatewayFilter instanceof Ordered) {
 				ordered.add(gatewayFilter);
 			}
 			else {
+				// 默认的 order 值 就是 定义 filter 的顺序
 				ordered.add(new OrderedGatewayFilter(gatewayFilter, i + 1));
 			}
 		}
@@ -173,32 +207,47 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 
 		// TODO: support option to apply defaults after route specific filters?
 		if (!this.gatewayProperties.getDefaultFilters().isEmpty()) {
+			/**
+			 * 先添加通过属性定义的默认Filter
+			 * spring.cloud.gateway.defaultFilters=[f1,f2]
+			 * */
 			filters.addAll(loadGatewayFilters(routeDefinition.getId(),
 					new ArrayList<>(this.gatewayProperties.getDefaultFilters())));
 		}
 
 		final List<FilterDefinition> definitionFilters = routeDefinition.getFilters();
 		if (!CollectionUtils.isEmpty(definitionFilters)) {
+			// 再添加 RouteDefinition 定义的 filter
 			filters.addAll(loadGatewayFilters(routeDefinition.getId(), definitionFilters));
 		}
 
+		// 排序
 		AnnotationAwareOrderComparator.sort(filters);
 		return filters;
 	}
 
 	private AsyncPredicate<ServerWebExchange> combinePredicates(RouteDefinition routeDefinition) {
 		List<PredicateDefinition> predicates = routeDefinition.getPredicates();
+		// routeDefinition 没有定义 predicate ，就设置一个返回 ture 的 AsyncPredicate
 		if (predicates == null || predicates.isEmpty()) {
 			// this is a very rare case, but possible, just match all
 			return AsyncPredicate.from(exchange -> true);
 		}
 
-		// 获取 AsyncPredicate
+		/**
+		 * 获取 AsyncPredicate。
+		 *
+		 * 会根据 predicate.getName() 拿到 RoutePredicateFactory，执行 RoutePredicateFactory.apply(config) 生成 AsyncPredicate
+		 * */
 		AsyncPredicate<ServerWebExchange> predicate = lookup(routeDefinition, predicates.get(0));
-
+		// 遍历剩下的 predicate
 		for (PredicateDefinition andPredicate : predicates.subList(1, predicates.size())) {
 			AsyncPredicate<ServerWebExchange> found = lookup(routeDefinition, andPredicate);
-			// and 的连接多个 predicate
+			/**
+			 * and 的连接多个 predicate。返回的是这个类型 AndAsyncPredicate
+			 *
+			 * 其实就是不断的套娃。
+			 * */
 			predicate = predicate.and(found);
 		}
 
@@ -208,8 +257,8 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 	@SuppressWarnings("unchecked")
 	private AsyncPredicate<ServerWebExchange> lookup(RouteDefinition route, PredicateDefinition predicate) {
 		/**
-		 * predicates 是 BeanFactory 中 RoutePredicateFactory 类型的 bean。
-		 * 所以可以理解成是从 BeanFactory 中得到 RoutePredicateFactory
+		 * predicates 是根据 BeanFactory 中 RoutePredicateFactory 类型的 bean 生成的。
+		 * 所以可以理解成是从 BeanFactory 中得到 RoutePredicateFactory。
 		 * */
 		RoutePredicateFactory<Object> factory = this.predicates.get(predicate.getName());
 		if (factory == null) {
@@ -221,15 +270,18 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 		}
 
 		/**
-		 * 根据 factory 知道配置类的类型、属性Map
-		 * configurationService 根据 属性Map 生成配置类，并进行属性绑定和属性校验(JSR303)
+		 * factory 实现 ShortcutConfigurable 接口，规定如何生成的 属性绑定的Map
+		 * factory 实现 Configurable 接口，规定使用 config 是啥
+		 *
+		 * configurationService 会依赖 factory 生成 属性绑定的Map 得到 Config 的类型
+		 * 然后使用 属性绑定的Map + ConversionsService + Validator 实例化 Config ，并且会对 Config 进行属性绑定和属性校验（JSR303）
 		 * */
 		// @formatter:off
 		Object config = this.configurationService.with(factory)
 				.name(predicate.getName())
-				// 设置属性。会根据属性生成属性Map
+				// 设置属性。会根据这个生成用于属性绑定的Map
 				.properties(predicate.getArgs())
-				// 定义事件
+				// 定义事件。对 config 完成属性绑定完后，会发布这个事件
 				.eventFunction((bound, properties) -> new PredicateArgsEvent(
 						RouteDefinitionRouteLocator.this, route.getId(), properties))
 				.bind();

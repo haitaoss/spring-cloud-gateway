@@ -44,6 +44,7 @@ public class RouteRefreshListener implements ApplicationListener<ApplicationEven
 
 	@Override
 	public void onApplicationEvent(ApplicationEvent event) {
+		// 这是 IOC 容器 refresh 的最后阶段会发布的事件
 		if (event instanceof ContextRefreshedEvent) {
 			ContextRefreshedEvent refreshedEvent = (ContextRefreshedEvent) event;
 			// 不是
@@ -51,7 +52,9 @@ public class RouteRefreshListener implements ApplicationListener<ApplicationEven
 				/**
 				 * 重设
 				 *
-				 * 其实就是发布一个 RefreshRoutesEvent 事件
+				 * 其实就是发布一个 RefreshRoutesEvent 事件，
+				 * 该事件会由 CachingRouteLocator 接收，会对 List<Route> 进行缓存
+				 * 		{@link CachingRouteLocator#onApplicationEvent(RefreshRoutesEvent)}
 				 * */
 				reset();
 			}

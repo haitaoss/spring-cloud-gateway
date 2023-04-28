@@ -134,7 +134,10 @@ public class AbstractGatewayControllerEndpoint implements ApplicationEventPublis
 	@PostMapping("/routes/{id}")
 	@SuppressWarnings("unchecked")
 	public Mono<ResponseEntity<Object>> save(@PathVariable String id, @RequestBody RouteDefinition route) {
-
+		/**
+		 * routeDefinitionWriter 这个是通过依赖注入得到的。
+		 * 新增的 RouteDefinition 是存到 routeDefinitionWriter 中
+		 * */
 		return Mono.just(route).doOnNext(this::validateRouteDefinition)
 				.flatMap(routeDefinition -> this.routeDefinitionWriter.save(Mono.just(routeDefinition).map(r -> {
 					r.setId(id);

@@ -256,7 +256,6 @@ public class ConfigurationService implements ApplicationEventPublisherAware {
 			if (this.normalizedProperties == null) {
 				/**
 				 * 初始化属性
-				 *
 				 * {@link ConfigurableBuilder#normalizeProperties()}
 				 * */
 				this.normalizedProperties = normalizeProperties();
