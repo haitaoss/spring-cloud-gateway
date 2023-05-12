@@ -8,7 +8,10 @@ spring:
           # 下面的内容都是 Spel 表达式，解析的根对象是 ServiceInstance
           urlExpression: "'lb://'+serviceId"
           predicates:
-            - Path='/'+serviceId+'/**'
+#            - Path='/'+serviceId+'/**'
+            - name: Path
+              args:
+                patterns: "'/'+serviceId+'/**'.replaceAll(' ','')"
           filters:
             - RewritePath='/' + serviceId + '/?(?<remaining>.*)', '/${remaining}'
     discovery:
