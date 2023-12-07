@@ -32,6 +32,14 @@ Spring Cloud Gateway 是基于 Spring WebFlux 实现的，是通过注册 WebFlu
 
 Gateway 通过注册 [RoutePredicateHandlerMapping](#RoutePredicateHandlerMapping) 实现核心逻辑
 
+```properties
+# Spring Cloud Gateway 的生命周期
+客户端请求 -> WebFlux服务 -> WebFilter -> DispatcherHandler -> RoutePredicateHandlerMapping -> FilteringWebHandler -> List<GlobaFilter> + Route.getFilters()
+
+# header 的设置可以看
+HttpHeadersFilter
+```
+
 # Gateway 自动装配
 
 `spring-cloud-gateway-server.jar!META-INF/spring.factories`的部分内容
